@@ -327,6 +327,46 @@
   }
   .official-btn:last-child { margin-bottom: 0; }
   .official-btn .arrow-out { color: var(--up); margin-left: 6px; }
+
+  .notice-block {
+    margin-top: 26px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .notice-summary {
+    padding: 14px 16px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink);
+    background: var(--panel);
+    cursor: pointer;
+    list-style: none;
+  }
+  .notice-summary::-webkit-details-marker { display: none; }
+  .notice-summary::after {
+    content: "▾";
+    float: right;
+    color: var(--ink-dim);
+  }
+  details[open] .notice-summary::after { content: "▴"; }
+  .notice-body {
+    padding: 4px 16px 16px;
+  }
+  .notice-body h3 {
+    font-size: 12.5px;
+    color: var(--ink-dim);
+    margin: 14px 0 6px;
+    font-weight: 700;
+  }
+  .notice-body h3:first-child { margin-top: 12px; }
+  .notice-body ul {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 12.5px;
+    line-height: 1.8;
+    color: var(--ink);
+  }
 </style>
 </head>
 <body>
@@ -421,6 +461,31 @@
   <div class="foot">
     データ提供：国土地理院 標高API・標準地図タイル。矢印は各方向10m間隔で200mまで(21地点、合計168地点分)の標高を調べた推定で、実際の地図(等高線)の上に重ねて表示しています。上り/下り/谷/山の判定にはデータ精度を考慮し0.3m以上の差を使用しています(0.3m未満はフラット扱い)。判断に迷う場合は背景の等高線そのものを優先してください。位置情報・標高の取得はこのページ上でお使いの端末が直接おこないます。
   </div>
+
+  <details class="notice-block">
+    <summary class="notice-summary">利用上の注意</summary>
+    <div class="notice-body">
+      <h3>安全に関する注意</h3>
+      <ul>
+        <li>避難の判断には使わないでください。津波・洪水などの緊急時は、自治体のハザードマップと公式の避難情報に従ってください。</li>
+        <li>登山や、電波の届かない場所での利用には向きません。通信できないと標高・地図とも取得できません。</li>
+        <li>浸水想定・避難場所・避難ルートはこのツールではわかりません。「重ねるハザードマップ」など公式情報を使ってください。</li>
+      </ul>
+      <h3>データの精度に関する注意</h3>
+      <ul>
+        <li>標高データは国土地理院の標高APIによる推定値です。都市部など整備が進んだ地域は5mメッシュ、山間部などは10mメッシュ相当のデータが使われており、地域によって精度にばらつきがあります。</li>
+        <li>上り/下り/谷/山の判定には0.3m以上の高低差を基準にしています。これより小さい凹凸はデータの誤差として無視される場合があります。</li>
+        <li>矢印は10m間隔でサンプリングした21地点をもとにした推定であり、地点と地点の間にあるごく短い急勾配の構造(狭いアンダーパスなど)は見逃す場合があります。実際の等高線(背景の地図)の方が一次情報として確実です。</li>
+        <li>矢印(↑↓／横棒)は常に「全体として登りか下りか平らか」を表し、経路の途中に谷/山がある場合は右上の小さな▼▲バッジで別途示しています。</li>
+      </ul>
+      <h3>動作環境に関する注意</h3>
+      <ul>
+        <li>位置情報の取得にはHTTPS環境が必要です。ファイルをそのまま(file://形式で)開くと動作しない場合があります。GitHub PagesなどHTTPSで配信される環境でお使いください。</li>
+        <li>方位(コンパス)機能は端末の磁気センサーを使用しており、周囲の金属・磁気の影響で実際の方角とずれることがあります。</li>
+        <li>通信量が多いため(1回あたり最大168地点)、取得に数十秒かかることがあります。</li>
+      </ul>
+    </div>
+  </details>
 </div>
 
 <script>
