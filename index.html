@@ -383,7 +383,7 @@
 <body>
 <div class="wrap">
   <h1>周辺高低コンパス</h1>
-  <p class="sub">現在地を中心に、8方向それぞれ200m先まで10m間隔で標高を調べ、断面の形（谷や坂の途中の凹凸も含む）を矢印とミニグラフで表示します。国土地理院の標高データを使用します。</p>
+  <p class="sub">現在地を中心に、8方向を10m間隔で標高を調べ、矢印とミニグラフで表示します。データは国土地理院の標高データを使用しています。</p>
 
   <div class="warn">
     避難の判断には使わないでください。津波・洪水などの緊急時は、自治体のハザードマップと公式の避難情報に従ってください。これは平常時に地形の傾向を把握するための参考ツールです。
@@ -469,7 +469,7 @@
         <span><span class="dot" style="background:#5FD98F"></span>◎ 安定して高台へ向かう</span>
         <span><span class="dot" style="background:#9FB3B8"></span>〜 上り下りを繰り返す(不安定)</span>
       </div>
-      <p class="map-note">背景は国土地理院「標準地図」タイル(実際の等高線入り)。矢印(↑↓／横棒)は常に「全体として登りか下りか平らか」だけを表します(コンパス上の方角とは無関係)。色が赤や濃い青に近いほど急勾配、太く長い矢印ほど高低差が大きいことを表します。右上の小さな▼▲は、全体の傾向とは別に「経路の途中に谷や山がある」ことを示す注意バッジで、矢印の意味を変えるものではありません。点線の同心円は、調べる距離の設定に関係なく常に実際の50m・100m・200m地点を示す目印です。オレンジの点が現在地です。</p>
+      <p class="map-note">背景は国土地理院「標準地図」タイル(実際の等高線入り)。地図は常に最大距離(400m)が収まる縮尺に固定されており、距離スイッチを切り替えても地図は動かず、矢印だけが選んだ距離の実際の位置(中心からの実距離)へ移動します。矢印(↑↓／横棒)は常に「全体として登りか下りか平らか」だけを表します(コンパス上の方角とは無関係)。色が赤や濃い青に近いほど急勾配、太く長い矢印ほど高低差が大きいことを表します。右上の小さな▼▲は、全体の傾向とは別に「経路の途中に谷や山がある」ことを示す注意バッジで、矢印の意味を変えるものではありません。点線の同心円は、常に実際の50m・100m・200m地点を示す目印です。オレンジの点が現在地です。</p>
 
       <div class="heading-row">
         <button id="headingBtn">今向いている方角を表示する</button>
@@ -645,6 +645,34 @@ const RING_DISTANCES_M = [50, 100, 200];
 
 function metersPerPixel(lat, zoom) {
   return 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, zoom);
+}
+
+// 選んだ距離(半径)が画面内に収まるよう、最適なズームレベルを逆算する。
+// marginRatioは余白の割合(1.0だと矢印が画面ギリギリになるため、少し余裕を持たせる)
+function bestZoomForDistance(lat, distM) {
+  const frame = document.querySelector(".map-frame");
+  const frameSize = (frame && frame.clientWidth) || 320;
+  const marginRatio = 0.8;
+  const availableRadiusPx = (frameSize / 2) * marginRatio;
+  // metersPerPixel = C / 2^zoom  →  2^zoom = C / metersPerPixel  、必要なmetersPerPixel = distM / availableRadiusPx
+  const neededMpp = distM / availableRadiusPx;
+  const C = 156543.03392 * Math.cos(lat * Math.PI / 180);
+  let zoom = Math.log2(C / neededMpp);
+  zoom = Math.floor(zoom);
+  return Math.max(12, Math.min(18, zoom));
+}
+
+// コンパス角度(北=0、時計回り)と実際の距離(m)から、svg座標系(0-300)上の位置を計算する。
+// 地図の現在のズーム・緯度をもとに、実際の縮尺どおりの位置になる(一気通貫で全距離を正しい位置に置ける)。
+function pointAtRealDistance(angleDeg, distM) {
+  const { lat, zoom } = mapState;
+  const frame = document.querySelector(".map-frame");
+  const frameSize = (frame && frame.clientWidth) || 320;
+  const mpp = metersPerPixel(lat, zoom);
+  const pixelRadius = distM / mpp;
+  const svgRadius = pixelRadius * (300 / frameSize);
+  const rad = (angleDeg - 90) * Math.PI / 180;
+  return { x: 150 + svgRadius * Math.cos(rad), y: 150 + svgRadius * Math.sin(rad), svgRadius };
 }
 
 function drawDistanceRings() {
@@ -852,17 +880,21 @@ function gradeColor(status, absDiff) {
 }
 
 function drawMapOverlay(points) {
-  const cx = 150, cy = 150, r = 78;
+  const cx = 150, cy = 150;
   let svgParts = [];
 
   points.forEach(p => {
     const rad = (p.angle - 90) * Math.PI / 180;
-    const px = cx + r * Math.cos(rad); // 各方向の表示位置(地図上の方角どおり)
-    const py = cy + r * Math.sin(rad);
+    // 各方向の表示位置は、現在選んでいる距離(SAMPLE_MAX_M)の実際の地図上の位置。
+    // 地図のズーム・緯度をもとに換算しているので、距離を切り替えると矢印は
+    // 見た目の位置がそのまま正しい実距離の場所へ動く(地図自体は常に同じ縮尺のまま)。
+    const pos = pointAtRealDistance(p.angle, SAMPLE_MAX_M);
+    const px = pos.x, py = pos.y;
+    const r = pos.svgRadius; // ラベル位置の計算に使う
     const style = STATUS_STYLE[p.status];
 
-    const lx = cx + (r + 24) * Math.cos(rad);
-    const ly = cy + (r + 24) * Math.sin(rad);
+    const lx = cx + (r + 22) * Math.cos(rad);
+    const ly = cy + (r + 22) * Math.sin(rad);
 
     // 方向ラベル(地図上でも読みやすいよう縁取り)
     svgParts.push(`<text x="${lx}" y="${ly+4}" text-anchor="middle" fill="#EFEAE0" font-size="13" font-weight="700" stroke="#17242A" stroke-width="3" paint-order="stroke">${p.label}</text>`);
@@ -999,8 +1031,8 @@ function renderGrid(points) {
       (p.isStableClimb ? `<span style="color:#5FD98F">◎</span>` : p.isOscillating ? `<span style="color:#9FB3B8">〜</span>` : "");
 
     row.innerHTML = `
-      <div class="dir">${p.label}</div>
-      <div class="arrow" style="color:${style.color}">${style.symbol}${cautionMark}</div>
+      <div class="dir" style="color:${style.color}">${p.label}</div>
+      <div class="arrow">${cautionMark}</div>
       ${sparklineSVG(p.fullProfile || p.profile, p.status, SAMPLE_MAX_M)}
       <div class="diff">${detail}</div>
     `;
@@ -1119,7 +1151,9 @@ async function run() {
     document.getElementById("accuracyNote").textContent = `位置精度 ±${Math.round(accuracy)}m(GPS申告値)・標高は近傍5点の平均`;
     document.getElementById("verifyLink").href = `https://maps.gsi.go.jp/#17/${lat}/${lon}/`;
 
-    mapState = { lat, lon, zoom: 16 };
+    // 地図は常に最大距離(400m)が収まるズームに固定する。距離スイッチを切り替えても
+    // 地図自体は動かさず、矢印だけが実際の距離の位置(pointAtRealDistance)へ移動する。
+    mapState = { lat, lon, zoom: bestZoomForDistance(lat, FETCH_MAX_M) };
 
     // 公式サイトへ現在地付きで飛べるようリンク先を更新
     document.getElementById("hazardMapLink").href =
@@ -1285,14 +1319,13 @@ distButtons.forEach(btn => {
     distButtons.forEach(b => b.classList.toggle("active", b === btn));
 
     // 説明文の「200m」表記を選択中の距離に合わせて更新
-    document.querySelector(".sub").textContent =
-      `現在地を中心に、8方向それぞれ${dist}m先まで10m間隔で標高を調べ、断面の形（谷や坂の途中の凹凸も含む）を矢印とミニグラフで表示します。国土地理院の標高データを使用します。`;
     const pointsAtDist = Math.floor(dist / SAMPLE_STEP_M) + 1;
     document.getElementById("footNote").textContent =
       `データ提供：国土地理院 標高API・標準地図タイル。矢印は各方向10m間隔で${dist}mまで(${pointsAtDist}地点、合計${pointsAtDist * 8}地点分)の標高データをもとに判定しています。実際の取得は毎回400mまでまとめて行うため、距離の切替は再通信せず即座に反映されます。上り/下り/谷/山の判定にはデータ精度を考慮し0.3m以上の差を使用しています(0.3m未満はフラット扱い)。判断に迷う場合は背景の等高線そのものを優先してください。位置情報・標高の取得はこのページ上でお使いの端末が直接おこないます。`;
 
     if (lastRawProfiles) {
-      // すでにデータを取得済みなら、キャッシュから即座に再計算(通信なし)
+      // すでにデータを取得済みなら、キャッシュから即座に再計算(通信なし)。
+      // 地図(ズーム)は常に400m基準で固定のまま動かさず、矢印だけが実際の距離の位置へ移動する。
       const points = buildPointsFromCache();
       renderGrid(points);
       drawMapOverlay(points);
