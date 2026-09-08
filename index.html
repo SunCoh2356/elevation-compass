@@ -178,6 +178,15 @@
     background: #E8A33D;
     border: 2px solid #17242A;
     box-shadow: 0 0 0 2px rgba(232,163,61,0.5);
+    z-index: 2;
+  }
+  #mapOverlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    pointer-events: none;
   }
   .map-note {
     font-size: 11.5px;
@@ -200,14 +209,6 @@
     font-variant-numeric: tabular-nums;
   }
   .here .val span { font-size: 15px; font-weight: 400; color: var(--ink-dim); }
-
-  .compass-box {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 1 / 1;
-    margin: 18px auto 8px;
-  }
-  svg { width: 100%; height: 100%; overflow: visible; }
 
   .legend {
     display: flex;
@@ -340,25 +341,9 @@
       <div class="val" id="hereVal">--<span> m</span></div>
     </div>
 
-    <div class="compass-box">
-      <svg id="compassSvg" viewBox="0 0 300 300"></svg>
-    </div>
-
-    <div class="legend">
-      <span><span class="dot" style="background:var(--up)"></span>上り</span>
-      <span><span class="dot" style="background:var(--flat)"></span>ほぼ平ら</span>
-      <span><span class="dot" style="background:var(--down)"></span>下り</span>
-    </div>
-    <div class="legend" style="margin-top:6px;">
-      <span><span class="dot" style="background:#D9634C"></span>途中に谷あり</span>
-      <span><span class="dot" style="background:#8FD35F"></span>途中に山あり</span>
-    </div>
-
-    <div class="grid" id="grid"></div>
-
     <div class="map-section">
       <p class="map-title">
-        <span>地形図（等高線）</span>
+        <span>地形図＋周辺の高低</span>
         <span class="zoom-controls">
           <button id="zoomOut">－</button>
           <button id="zoomIn">＋</button>
@@ -366,10 +351,22 @@
       </p>
       <div class="map-frame">
         <div class="map-tiles" id="mapTiles"></div>
+        <svg id="mapOverlay" viewBox="0 0 300 300" preserveAspectRatio="none"></svg>
         <div class="map-marker" id="mapMarker"></div>
       </div>
-      <p class="map-note">国土地理院「標準地図」タイルをそのまま表示しています。等高線の間隔は地図のズームレベルによって変わります(この地図では10mまたは50m間隔)。オレンジの点が現在地です。</p>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--up)"></span>上り</span>
+        <span><span class="dot" style="background:var(--flat)"></span>ほぼ平ら</span>
+        <span><span class="dot" style="background:var(--down)"></span>下り</span>
+      </div>
+      <div class="legend" style="margin-top:6px;">
+        <span><span class="dot" style="background:#D9634C"></span>途中に谷あり</span>
+        <span><span class="dot" style="background:#8FD35F"></span>途中に山あり</span>
+      </div>
+      <p class="map-note">背景は国土地理院「標準地図」タイル(実際の等高線入り)。矢印は各方向10m間隔・200mまでの標高推定です。オレンジの点が現在地です。</p>
     </div>
+
+    <div class="grid" id="grid"></div>
 
     <div class="official-block">
       <p class="official-title">浸水・避難の判断は公式情報で</p>
@@ -381,7 +378,7 @@
   </div>
 
   <div class="foot">
-    データ提供：国土地理院 標高API・標準地図タイル。矢印グラフは各方向10m間隔で200mまで(21地点、合計168地点分)の標高を調べた推定です。地形図(等高線)は国土地理院の地図画像をそのまま表示しており、推定を介さない実際の等高線です。判断に迷う場合は等高線地図を優先してください。位置情報・標高の取得はこのページ上でお使いの端末が直接おこないます。
+    データ提供：国土地理院 標高API・標準地図タイル。矢印は各方向10m間隔で200mまで(21地点、合計168地点分)の標高を調べた推定で、実際の地図(等高線)の上に重ねて表示しています。上り/下り/谷/山の判定にはデータ精度を考慮し0.3m以上の差を使用しています(0.3m未満はフラット扱い)。判断に迷う場合は背景の等高線そのものを優先してください。位置情報・標高の取得はこのページ上でお使いの端末が直接おこないます。
   </div>
 </div>
 
@@ -403,7 +400,10 @@ const SAMPLE_STEP_M = 10;
 const SAMPLE_MAX_M = 200;
 const SAMPLE_DISTANCES = [];
 for (let d = SAMPLE_STEP_M; d <= SAMPLE_MAX_M; d += SAMPLE_STEP_M) SAMPLE_DISTANCES.push(d);
-const FLAT_THRESHOLD = 0.1; // これ未満の差は「ほぼ平ら」扱い(m)
+// 国土地理院DEMの実際の垂直精度は5mメッシュでもおおよそ±0.3m程度あるため、
+// これより細かいしきい値では、地形ではなくデータの誤差・ノイズを拾ってしまう。
+// (数値表示自体は0.1m単位のまま。判定にだけこのしきい値を使う)
+const FLAT_THRESHOLD = 0.3; // これ未満の差は「ほぼ平ら」扱い(m)
 
 const locateBtn = document.getElementById("locate");
 const statusEl = document.getElementById("status");
@@ -411,7 +411,6 @@ const errorBox = document.getElementById("errorBox");
 const resultEl = document.getElementById("result");
 const hereVal = document.getElementById("hereVal");
 const gridEl = document.getElementById("grid");
-const svg = document.getElementById("compassSvg");
 
 function showError(msg) {
   errorBox.style.display = "block";
@@ -574,16 +573,11 @@ const STATUS_STYLE = {
   error:  { color: "#586A6E", symbol: "?",  note: "取得できず" },
 };
 
-function drawCompass(points) {
-  const cx = 150, cy = 150, r = 95;
+// 地図(タイル画像)の上に、方向ごとの高低を矢印で重ねて描く。
+// 中心・現在地ラベルは地図側のマーカーで表現済みなので、ここでは矢印のみを描く。
+function drawMapOverlay(points) {
+  const cx = 150, cy = 150, r = 78;
   let svgParts = [];
-
-  [95, 63, 32].forEach(rad => {
-    svgParts.push(`<circle cx="${cx}" cy="${cy}" r="${rad}" fill="none" stroke="#35505A" stroke-width="1"/>`);
-  });
-
-  svgParts.push(`<circle cx="${cx}" cy="${cy}" r="6" fill="#EFEAE0"/>`);
-  svgParts.push(`<text x="${cx}" y="${cy+22}" text-anchor="middle" fill="#9FB3B8" font-size="11">現在地</text>`);
 
   points.forEach(p => {
     const rad = (p.angle - 90) * Math.PI / 180;
@@ -591,16 +585,18 @@ function drawCompass(points) {
     const ty = cy + r * Math.sin(rad);
     const style = STATUS_STYLE[p.status];
 
-    const lx = cx + (r + 26) * Math.cos(rad);
-    const ly = cy + (r + 26) * Math.sin(rad);
-    svgParts.push(`<text x="${lx}" y="${ly+4}" text-anchor="middle" fill="#9FB3B8" font-size="12">${p.label}</text>`);
+    const lx = cx + (r + 24) * Math.cos(rad);
+    const ly = cy + (r + 24) * Math.sin(rad);
 
-    svgParts.push(`<line x1="${cx}" y1="${cy}" x2="${tx}" y2="${ty}" stroke="${style.color}" stroke-width="2.5" stroke-linecap="round" opacity="0.85"/>`);
-    svgParts.push(`<circle cx="${tx}" cy="${ty}" r="15" fill="#1F323A" stroke="${style.color}" stroke-width="1.5"/>`);
-    svgParts.push(`<text x="${tx}" y="${ty+6}" text-anchor="middle" fill="${style.color}" font-size="16" font-weight="700">${style.symbol}</text>`);
+    // 地図画像の上でも読みやすいよう、文字に濃い縁取りをつける
+    svgParts.push(`<text x="${lx}" y="${ly+4}" text-anchor="middle" fill="#EFEAE0" font-size="13" font-weight="700" stroke="#17242A" stroke-width="3" paint-order="stroke">${p.label}</text>`);
+
+    svgParts.push(`<line x1="${cx}" y1="${cy}" x2="${tx}" y2="${ty}" stroke="${style.color}" stroke-width="3" stroke-linecap="round" opacity="0.9"/>`);
+    svgParts.push(`<circle cx="${tx}" cy="${ty}" r="14" fill="#17242A" stroke="${style.color}" stroke-width="2"/>`);
+    svgParts.push(`<text x="${tx}" y="${ty+5}" text-anchor="middle" fill="${style.color}" font-size="15" font-weight="700">${style.symbol}</text>`);
   });
 
-  svg.innerHTML = svgParts.join("");
+  document.getElementById("mapOverlay").innerHTML = svgParts.join("");
 }
 
 // 各方向の断面図を小さな折れ線(スパークライン)で描く。数値を読まなくても形でわかる。
@@ -727,11 +723,11 @@ async function run() {
       points.push({ ...d, profile, ...cls });
     }
 
-    drawCompass(points);
     renderGrid(points);
 
     resultEl.style.display = "block";
     drawContourMap();
+    drawMapOverlay(points);
     setStatus(`完了(所要時間 約${elapsed()}秒)`);
     locateBtn.disabled = false;
   }, (err) => {
