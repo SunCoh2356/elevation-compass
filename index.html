@@ -355,15 +355,19 @@
         <div class="map-marker" id="mapMarker"></div>
       </div>
       <div class="legend">
-        <span><span class="dot" style="background:var(--up)"></span>上り</span>
-        <span><span class="dot" style="background:var(--flat)"></span>ほぼ平ら</span>
-        <span><span class="dot" style="background:var(--down)"></span>下り</span>
+        <span><span class="dot" style="background:#E8A33D"></span>緩やかな登り</span>
+        <span><span class="dot" style="background:#D9302B"></span>急な登り</span>
       </div>
       <div class="legend" style="margin-top:6px;">
+        <span><span class="dot" style="background:#8FCBEA"></span>緩やかな下り</span>
+        <span><span class="dot" style="background:#1B4F91"></span>急な下り</span>
+      </div>
+      <div class="legend" style="margin-top:6px;">
+        <span><span class="dot" style="background:var(--flat)"></span>ほぼ平ら</span>
         <span><span class="dot" style="background:#D9634C"></span>途中に谷あり</span>
         <span><span class="dot" style="background:#8FD35F"></span>途中に山あり</span>
       </div>
-      <p class="map-note">背景は国土地理院「標準地図」タイル(実際の等高線入り)。矢印は各方向10m間隔・200mまでの標高推定です。オレンジの点が現在地です。</p>
+      <p class="map-note">背景は国土地理院「標準地図」タイル(実際の等高線入り)。矢印は画面の上下だけを使い、上向き＝登り・下向き＝下りを表します(コンパス上の方角とは無関係)。色が赤や濃い青に近いほど急勾配、太く長い矢印ほど高低差が大きいことを表します。オレンジの点が現在地です。</p>
     </div>
 
     <div class="grid" id="grid"></div>
@@ -575,25 +579,88 @@ const STATUS_STYLE = {
 
 // 地図(タイル画像)の上に、方向ごとの高低を矢印で重ねて描く。
 // 中心・現在地ラベルは地図側のマーカーで表現済みなので、ここでは矢印のみを描く。
+// 地図(タイル画像)の上に、方向ごとの高低を「垂直方向のベクトル矢印」で重ねて描く。
+// 矢印は常に画面の上下で描き、上向き=登り・下向き=下り。長さと数値が勾配の強さを表す。
+// (コンパス上の方角には左右の位置だけを対応させ、上下の向き・長さは方角と無関係に勾配そのものを表す)
+const GRADE_MAX_M = 6;   // これ以上の高低差(200m換算)は矢印の長さ・色・太さを頭打ちにする
+const ARROW_MIN_LEN = 10;
+const ARROW_MAX_LEN = 30;
+const ARROW_MIN_WIDTH = 2.5;
+const ARROW_MAX_WIDTH = 7;
+
+function gradeArrowLen(absDiff) {
+  const t = Math.min(absDiff / GRADE_MAX_M, 1);
+  return ARROW_MIN_LEN + t * (ARROW_MAX_LEN - ARROW_MIN_LEN);
+}
+function gradeArrowWidth(absDiff) {
+  const t = Math.min(absDiff / GRADE_MAX_M, 1);
+  return ARROW_MIN_WIDTH + t * (ARROW_MAX_WIDTH - ARROW_MIN_WIDTH);
+}
+
+// 2つのhex色をtで線形補間する
+function lerpColor(hexA, hexB, t) {
+  const a = [1,3,5].map(i => parseInt(hexA.slice(i, i+2), 16));
+  const b = [1,3,5].map(i => parseInt(hexB.slice(i, i+2), 16));
+  const c = a.map((v, i) => Math.round(v + (b[i] - v) * t));
+  return `#${c.map(v => v.toString(16).padStart(2,"0")).join("")}`;
+}
+
+// 登り: 緩やか(オレンジ)→急(赤) / 下り: 緩やか(水色)→急(濃い青)
+function gradeColor(status, absDiff) {
+  const t = Math.min(absDiff / GRADE_MAX_M, 1);
+  if (status === "up")   return lerpColor("#E8A33D", "#D9302B", t); // オレンジ→赤
+  if (status === "down") return lerpColor("#8FCBEA", "#1B4F91", t); // 水色→濃い青
+  return STATUS_STYLE[status].color;
+}
+
 function drawMapOverlay(points) {
   const cx = 150, cy = 150, r = 78;
   let svgParts = [];
 
   points.forEach(p => {
     const rad = (p.angle - 90) * Math.PI / 180;
-    const tx = cx + r * Math.cos(rad);
-    const ty = cy + r * Math.sin(rad);
+    const px = cx + r * Math.cos(rad); // 各方向の表示位置(地図上の方角どおり)
+    const py = cy + r * Math.sin(rad);
     const style = STATUS_STYLE[p.status];
 
     const lx = cx + (r + 24) * Math.cos(rad);
     const ly = cy + (r + 24) * Math.sin(rad);
 
-    // 地図画像の上でも読みやすいよう、文字に濃い縁取りをつける
+    // 方向ラベル(地図上でも読みやすいよう縁取り)
     svgParts.push(`<text x="${lx}" y="${ly+4}" text-anchor="middle" fill="#EFEAE0" font-size="13" font-weight="700" stroke="#17242A" stroke-width="3" paint-order="stroke">${p.label}</text>`);
+    // 中心からこの方向位置までの薄い基準線(方角の目安)
+    svgParts.push(`<line x1="${cx}" y1="${cy}" x2="${px}" y2="${py}" stroke="#35505A" stroke-width="1" stroke-dasharray="2,3"/>`);
+    // ベースの円(背景)。縁の色は勾配の強さに応じて変化(up/downのみ)
+    const ringColor = (p.status === "up" || p.status === "down")
+      ? gradeColor(p.status, Math.abs(p.netDiff))
+      : style.color;
+    svgParts.push(`<circle cx="${px}" cy="${py}" r="16" fill="#17242A" stroke="${ringColor}" stroke-width="2"/>`);
 
-    svgParts.push(`<line x1="${cx}" y1="${cy}" x2="${tx}" y2="${ty}" stroke="${style.color}" stroke-width="3" stroke-linecap="round" opacity="0.9"/>`);
-    svgParts.push(`<circle cx="${tx}" cy="${ty}" r="14" fill="#17242A" stroke="${style.color}" stroke-width="2"/>`);
-    svgParts.push(`<text x="${tx}" y="${ty+5}" text-anchor="middle" fill="${style.color}" font-size="15" font-weight="700">${style.symbol}</text>`);
+    // ベクトル矢印: 画面の上下だけを使い、上=登り・下=下り。長さ・太さ・色が勾配の強さを表す。
+    if (p.status === "up" || p.status === "down") {
+      const absDiff = Math.abs(p.netDiff);
+      const len = gradeArrowLen(absDiff);
+      const width = gradeArrowWidth(absDiff);
+      const gColor = gradeColor(p.status, absDiff);
+      const half = len / 2;
+      const tailY = p.status === "up" ? py + half : py - half;
+      const tipY  = p.status === "up" ? py - half : py + half;
+      svgParts.push(`<line x1="${px}" y1="${tailY}" x2="${px}" y2="${tipY}" stroke="${gColor}" stroke-width="${width.toFixed(1)}" stroke-linecap="round"/>`);
+      const ah = 5 + width * 0.6, aw = 4 + width * 0.5;
+      const tipDir = p.status === "up" ? -1 : 1;
+      svgParts.push(`<polygon points="${px},${tipY} ${px-aw},${tipY - tipDir*ah} ${px+aw},${tipY - tipDir*ah}" fill="${gColor}"/>`);
+
+      const pct = (p.netDiff / SAMPLE_MAX_M) * 100;
+      const sign = pct >= 0 ? "+" : "";
+      const gy = py + (p.status === "up" ? 32 : -24);
+      svgParts.push(`<text x="${px}" y="${gy}" text-anchor="middle" fill="${gColor}" font-size="10" font-weight="700" stroke="#17242A" stroke-width="2.5" paint-order="stroke">${sign}${pct.toFixed(1)}%</text>`);
+    } else if (p.status === "flat") {
+      svgParts.push(`<line x1="${px-9}" y1="${py}" x2="${px+9}" y2="${py}" stroke="${style.color}" stroke-width="3" stroke-linecap="round"/>`);
+    } else if (p.status === "valley" || p.status === "hill") {
+      svgParts.push(`<text x="${px}" y="${py+5}" text-anchor="middle" fill="${style.color}" font-size="15" font-weight="700">${style.symbol}</text>`);
+    } else {
+      svgParts.push(`<text x="${px}" y="${py+5}" text-anchor="middle" fill="${style.color}" font-size="15" font-weight="700">?</text>`);
+    }
   });
 
   document.getElementById("mapOverlay").innerHTML = svgParts.join("");
