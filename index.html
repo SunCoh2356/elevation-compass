@@ -254,8 +254,19 @@
     vertical-align: -1px;
   }
 
-  .grid {
+  .best-climb-summary {
     margin-top: 26px;
+    padding: 12px 14px;
+    background: rgba(95, 217, 143, 0.08);
+    border: 1px solid rgba(95, 217, 143, 0.35);
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--ink);
+  }
+
+  .grid {
+    margin-top: 18px;
     border-top: 1px solid var(--line);
   }
   .row {
@@ -378,6 +389,17 @@
     避難の判断には使わないでください。津波・洪水などの緊急時は、自治体のハザードマップと公式の避難情報に従ってください。これは平常時に地形の傾向を把握するための参考ツールです。
   </div>
 
+  <div class="help-block" style="margin-top:0; border-top:none; padding-top:0;">
+    <p class="help-title">調べる距離</p>
+    <div class="switch">
+      <button id="dist50" data-dist="50">50m</button>
+      <button id="dist100" data-dist="100">100m</button>
+      <button id="dist200" data-dist="200" class="active">200m</button>
+      <button id="dist400" data-dist="400">400m</button>
+    </div>
+    <p class="help-note">距離を伸ばすほど通信量が増え、取得に時間がかかります(400mは200mのおよそ2倍)。</p>
+  </div>
+
   <button id="locate">現在地から調べる</button>
   <div id="status"></div>
   <div id="errorBox" class="err"></div>
@@ -439,7 +461,15 @@
         <span><span class="dot" style="background:#B255D9"></span>▼ 経路の途中に谷(注意)</span>
         <span><span class="dot" style="background:#5FD98F"></span>▲ 経路の途中に山</span>
       </div>
-      <p class="map-note">背景は国土地理院「標準地図」タイル(実際の等高線入り)。矢印(↑↓／横棒)は常に「全体として登りか下りか平らか」だけを表します(コンパス上の方角とは無関係)。色が赤や濃い青に近いほど急勾配、太く長い矢印ほど高低差が大きいことを表します。右上の小さな▼▲は、全体の傾向とは別に「経路の途中に谷や山がある」ことを示す注意バッジで、矢印の意味を変えるものではありません。オレンジの点が現在地です。</p>
+      <div class="legend" style="margin-top:6px;">
+        <span><span class="dot" style="background:#C79A5B"></span>▮ 急な段差(盛り土・堤防等の可能性)</span>
+        <span><span class="dot" style="background:#FF5252"></span>U アンダーパスの可能性(冠水注意)</span>
+      </div>
+      <div class="legend" style="margin-top:6px;">
+        <span><span class="dot" style="background:#5FD98F"></span>◎ 安定して高台へ向かう</span>
+        <span><span class="dot" style="background:#9FB3B8"></span>〜 上り下りを繰り返す(不安定)</span>
+      </div>
+      <p class="map-note">背景は国土地理院「標準地図」タイル(実際の等高線入り)。矢印(↑↓／横棒)は常に「全体として登りか下りか平らか」だけを表します(コンパス上の方角とは無関係)。色が赤や濃い青に近いほど急勾配、太く長い矢印ほど高低差が大きいことを表します。右上の小さな▼▲は、全体の傾向とは別に「経路の途中に谷や山がある」ことを示す注意バッジで、矢印の意味を変えるものではありません。点線の同心円は、調べる距離の設定に関係なく常に実際の50m・100m・200m地点を示す目印です。オレンジの点が現在地です。</p>
 
       <div class="heading-row">
         <button id="headingBtn">今向いている方角を表示する</button>
@@ -462,6 +492,8 @@
           <li>上り/下り/谷/山の判定には0.3m以上の高低差を基準にしています。これより小さい凹凸はデータの誤差として無視される場合があります。</li>
           <li>矢印は10m間隔でサンプリングした21地点をもとにした推定であり、地点と地点の間にあるごく短い急勾配の構造(狭いアンダーパスなど)は見逃す場合があります。実際の等高線(背景の地図)の方が一次情報として確実です。</li>
           <li>矢印(↑↓／横棒)は常に「全体として登りか下りか平らか」を表し、経路の途中に谷/山がある場合は右上の小さな▼▲バッジで別途示しています。</li>
+          <li>標高データは「そこにその高さの地面がある」という数値だけを表し、なだらかな坂か、鉄道の盛り土・堤防・擁壁のような人工的な段差かは区別できません。10mの区間で1m以上の急激な変化がある場合、左上に▮バッジで注意を示していますが、これはあくまで目安であり、実際に直登できるか(あるいは踏切や階段まで迂回が必要か)は現地で確認してください。</li>
+          <li>「アンダーパスの可能性(U)」バッジは、3m以上の掘り下げの後、前後1m以内の高さに戻るという特徴的な形状を検出した場合に表示しています。これは実際のアンダーパスの構造(建築限界を確保するための掘り下げと復帰)を踏まえた経験則であり、正式なアンダーパス台帳や道路管理者のデータに基づくものではありません。同様の形状を持つ他の地形(切通しなど)も該当する場合があります。大雨時にアンダーパスは冠水しやすいため、該当箇所は特に注意してください。</li>
         </ul>
         <h3>動作環境に関する注意</h3>
         <ul>
@@ -472,6 +504,7 @@
       </div>
     </details>
 
+    <div class="best-climb-summary" id="bestClimbSummary" style="display:none;"></div>
     <div class="grid" id="grid"></div>
 
     <div class="official-block">
@@ -483,7 +516,7 @@
     </div>
   </div>
 
-  <div class="foot">
+  <div class="foot" id="footNote">
     データ提供：国土地理院 標高API・標準地図タイル。矢印は各方向10m間隔で200mまで(21地点、合計168地点分)の標高を調べた推定で、実際の地図(等高線)の上に重ねて表示しています。上り/下り/谷/山の判定にはデータ精度を考慮し0.3m以上の差を使用しています(0.3m未満はフラット扱い)。判断に迷う場合は背景の等高線そのものを優先してください。位置情報・標高の取得はこのページ上でお使いの端末が直接おこないます。
   </div>
 </div>
@@ -503,9 +536,13 @@ const DIRS = [
 // 国土地理院の標高データは多くの地域で10mメッシュが基本単位。
 // それより細かく刻んでも、地域によっては元データ以上の情報が増えないため10m間隔を基本とする。
 const SAMPLE_STEP_M = 10;
-const SAMPLE_MAX_M = 200;
-const SAMPLE_DISTANCES = [];
-for (let d = SAMPLE_STEP_M; d <= SAMPLE_MAX_M; d += SAMPLE_STEP_M) SAMPLE_DISTANCES.push(d);
+const FETCH_MAX_M = 400; // 取得(通信)は常にここまで行い、キャッシュしておく
+const FETCH_DISTANCES = [];
+for (let d = SAMPLE_STEP_M; d <= FETCH_MAX_M; d += SAMPLE_STEP_M) FETCH_DISTANCES.push(d);
+
+let SAMPLE_MAX_M = 200; // 矢印/判定に使う距離。50/100/200/400mから選択可能(スイッチ切替時は再取得せずキャッシュから再計算)
+let lastRawProfiles = null; // {key,label,angle,profile:[{dist,elev}...](400mまで全部)} の配列。距離切替の即時再計算に使う
+
 // 国土地理院DEMの実際の垂直精度は5mメッシュでもおおよそ±0.3m程度あるため、
 // これより細かいしきい値では、地形ではなくデータの誤差・ノイズを拾ってしまう。
 // (数値表示自体は0.1m単位のまま。判定にだけこのしきい値を使う)
@@ -599,6 +636,45 @@ function drawContourMap() {
   const marker = document.getElementById("mapMarker");
   marker.style.left = (frameSize / 2) + "px";
   marker.style.top = (frameSize / 2) + "px";
+
+  drawDistanceRings();
+}
+
+// 選んだ調査距離とは無関係に、実際の50m・100m・200m地点を同心円の目印として表示する
+const RING_DISTANCES_M = [50, 100, 200];
+
+function metersPerPixel(lat, zoom) {
+  return 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, zoom);
+}
+
+function drawDistanceRings() {
+  const { lat, zoom } = mapState;
+  if (lat === null) return;
+  const frame = document.querySelector(".map-frame");
+  const frameSize = frame.clientWidth;
+  if (!frameSize) return;
+
+  const mpp = metersPerPixel(lat, zoom); // 1画面ピクセルが実際に何mか
+  const cx = 150, cy = 150; // svg座標系(viewBox 300x300)の中心
+  const svgPerPixel = 300 / frameSize; // 物理ピクセル→svg座標への換算
+
+  let parts = [];
+  RING_DISTANCES_M.forEach(distM => {
+    const radiusPx = distM / mpp;
+    const radiusSvg = radiusPx * svgPerPixel;
+    parts.push(`<circle cx="${cx}" cy="${cy}" r="${radiusSvg.toFixed(1)}" fill="none" stroke="#EFEAE0" stroke-width="1" stroke-dasharray="3,4" opacity="0.35"/>`);
+    // ラベルは円の右上あたりに配置
+    const lx = cx + radiusSvg * Math.cos(-45 * Math.PI / 180);
+    const ly = cy + radiusSvg * Math.sin(-45 * Math.PI / 180);
+    parts.push(`<text x="${lx}" y="${ly}" text-anchor="middle" fill="#EFEAE0" font-size="9" opacity="0.6" stroke="#17242A" stroke-width="2" paint-order="stroke">${distM}m</text>`);
+  });
+
+  const existing = document.getElementById("distanceRings");
+  if (existing) existing.remove();
+  const overlay = document.getElementById("mapOverlay");
+  if (overlay) {
+    overlay.insertAdjacentHTML("afterbegin", `<g id="distanceRings">${parts.join("")}</g>`);
+  }
 }
 
 document.getElementById("zoomIn").addEventListener("click", () => {
@@ -663,13 +739,60 @@ function classifyProfile(profile) {
   // 「山」= 始点・終点の両方より明確に高い地点が途中にある
   const hasHill = (maxV - start > FLAT_THRESHOLD) && (maxV - end > FLAT_THRESHOLD);
 
+  // アンダーパス特有のパターン検出:
+  // 道路が交差する道路・鉄道の下をくぐるため、建築限界(概ね4.5m)を確保する分だけ
+  // 大きく掘り下げ、その後ほぼ元の高さまで戻る、という特徴的なU字形状を持つ。
+  // 「谷あり」より厳しい深さの条件と、「前後がほぼ同じ高さに戻る」条件を組み合わせて判定する。
+  const UNDERPASS_DEPTH_M = 3.0; // 建築限界(4.5m)相当を踏まえた経験的しきい値
+  const UNDERPASS_RETURN_TOLERANCE_M = 1.0; // 前後の高さがこの範囲内なら「ほぼ同じ高さに戻った」とみなす
+  const dipFromStart = start - minV;
+  const dipFromEnd = end - minV;
+  const isPossibleUnderpass =
+    dipFromStart >= UNDERPASS_DEPTH_M &&
+    dipFromEnd >= UNDERPASS_DEPTH_M &&
+    Math.abs(netDiff) < UNDERPASS_RETURN_TOLERANCE_M;
+
+  // 隣接する10m区間だけで急激に高さが変わっている場合、なだらかな坂ではなく
+  // 鉄道の盛り土・堤防・擁壁のような人工的な段差である可能性が高い。
+  // (10mで1.0m=10%という局所的な急さは、自然な坂としては非常に稀)
+  const STEP_THRESHOLD_M = 1.0;
+  let maxStepJump = 0;
+  for (let i = 0; i < profile.length - 1; i++) {
+    const a = profile[i].elev, b = profile[i + 1].elev;
+    if (a === null || b === null) continue;
+    maxStepJump = Math.max(maxStepJump, Math.abs(b - a));
+  }
+  const hasStep = maxStepJump > STEP_THRESHOLD_M;
+
+  // 上り下りを何度も繰り返している方向は、見かけ上「登り」でも実際には高台へ安定して
+  // たどり着けない(振動しているだけの)可能性がある。区間ごとの向き(上り/下り)が
+  // 何回入れ替わったかを数え、繰り返しが多い方向には注意を示す。
+  const REVERSAL_DEAD_ZONE_M = 0.15; // これ未満の変化は水平とみなしノイズとして無視
+  let reversalCount = 0;
+  let prevSign = 0;
+  for (let i = 0; i < profile.length - 1; i++) {
+    const a = profile[i].elev, b = profile[i + 1].elev;
+    if (a === null || b === null) continue;
+    const d = b - a;
+    const sign = d > REVERSAL_DEAD_ZONE_M ? 1 : d < -REVERSAL_DEAD_ZONE_M ? -1 : 0;
+    if (sign !== 0) {
+      if (prevSign !== 0 && sign !== prevSign) reversalCount++;
+      prevSign = sign;
+    }
+  }
   // status は常に「全体として登り/下り/ほぼ平ら」を表す(谷・山の有無で意味を反転させない)
   let status;
   if (netDiff >= FLAT_THRESHOLD) status = "up";
   else if (netDiff <= -FLAT_THRESHOLD) status = "down";
   else status = "flat";
 
-  return { status, hasValley, hasHill, netDiff, minV, maxV, start, end };
+  // 「安定した登り」= 全体として登りで、かつ上り下りの反転が少ない(概ね一直線に近い)方向
+  const isStableClimb = status === "up" && reversalCount <= 1;
+  // 「不安定(振動)」= 反転が多い方向。登りでも下りでも、実際には行ったり来たりしている
+  const isOscillating = reversalCount >= 3;
+
+  return { status, hasValley, hasHill, hasStep, maxStepJump, isPossibleUnderpass, dipFromStart, dipFromEnd,
+           reversalCount, isStableClimb, isOscillating, netDiff, minV, maxV, start, end };
 }
 
 const STATUS_STYLE = {
@@ -681,8 +804,10 @@ const STATUS_STYLE = {
 
 // 「谷あり」「山あり」は上り/下りを置き換えず、注意バッジとして矢印に添える
 const CAUTION_STYLE = {
-  valley: { color: "#B255D9", symbol: "▼", note: "途中に低い場所あり(要注意)" },
-  hill:   { color: "#5FD98F", symbol: "▲", note: "途中に高い場所あり" },
+  valley:    { color: "#B255D9", symbol: "▼", note: "途中に低い場所あり(要注意)" },
+  hill:      { color: "#5FD98F", symbol: "▲", note: "途中に高い場所あり" },
+  step:      { color: "#C79A5B", symbol: "▮", note: "急激な段差の可能性(盛り土・堤防・擁壁など。直登できず迂回が必要な場合があります)" },
+  underpass: { color: "#FF5252", symbol: "U", note: "アンダーパスの可能性(大雨時に冠水しやすい構造です。要注意)" },
 };
 
 // 地図(タイル画像)の上に、方向ごとの高低を矢印で重ねて描く。
@@ -690,18 +815,23 @@ const CAUTION_STYLE = {
 // 地図(タイル画像)の上に、方向ごとの高低を「垂直方向のベクトル矢印」で重ねて描く。
 // 矢印は常に画面の上下で描き、上向き=登り・下向き=下り。長さと数値が勾配の強さを表す。
 // (コンパス上の方角には左右の位置だけを対応させ、上下の向き・長さは方角と無関係に勾配そのものを表す)
-const GRADE_MAX_M = 6;   // これ以上の高低差(200m換算)は矢印の長さ・色・太さを頭打ちにする
+// 距離設定(100/200/400m)が変わっても同じ急さが同じ見た目になるよう、勾配(%)基準で統一する。
+const GRADE_MAX_PCT = 3;   // これ以上の勾配(%)は矢印の長さ・色・太さを頭打ちにする
 const ARROW_MIN_LEN = 10;
 const ARROW_MAX_LEN = 30;
 const ARROW_MIN_WIDTH = 2.5;
 const ARROW_MAX_WIDTH = 7;
 
+function gradePctOf(absDiff) {
+  return Math.abs(absDiff / SAMPLE_MAX_M) * 100;
+}
+
 function gradeArrowLen(absDiff) {
-  const t = Math.min(absDiff / GRADE_MAX_M, 1);
+  const t = Math.min(gradePctOf(absDiff) / GRADE_MAX_PCT, 1);
   return ARROW_MIN_LEN + t * (ARROW_MAX_LEN - ARROW_MIN_LEN);
 }
 function gradeArrowWidth(absDiff) {
-  const t = Math.min(absDiff / GRADE_MAX_M, 1);
+  const t = Math.min(gradePctOf(absDiff) / GRADE_MAX_PCT, 1);
   return ARROW_MIN_WIDTH + t * (ARROW_MAX_WIDTH - ARROW_MIN_WIDTH);
 }
 
@@ -715,7 +845,7 @@ function lerpColor(hexA, hexB, t) {
 
 // 登り: 緩やか(オレンジ)→急(赤) / 下り: 緩やか(水色)→急(濃い青)
 function gradeColor(status, absDiff) {
-  const t = Math.min(absDiff / GRADE_MAX_M, 1);
+  const t = Math.min(gradePctOf(absDiff) / GRADE_MAX_PCT, 1);
   if (status === "up")   return lerpColor("#E8A33D", "#D9302B", t); // オレンジ→赤
   if (status === "down") return lerpColor("#8FCBEA", "#1B4F91", t); // 水色→濃い青
   return STATUS_STYLE[status].color;
@@ -768,47 +898,68 @@ function drawMapOverlay(points) {
       svgParts.push(`<text x="${px}" y="${py+5}" text-anchor="middle" fill="${style.color}" font-size="15" font-weight="700">?</text>`);
     }
 
-    // 注意バッジ: 経路の途中に谷/山がある場合、矢印を置き換えずに小さく添える
-    if (p.status !== "error" && (p.hasValley || p.hasHill)) {
-      const badgeX = px + 15, badgeY = py - 15;
-      const cs = p.hasValley ? CAUTION_STYLE.valley : CAUTION_STYLE.hill;
-      svgParts.push(`<circle cx="${badgeX}" cy="${badgeY}" r="9" fill="#17242A" stroke="${cs.color}" stroke-width="1.5"/>`);
-      svgParts.push(`<text x="${badgeX}" y="${badgeY+4}" text-anchor="middle" fill="${cs.color}" font-size="11" font-weight="700">${cs.symbol}</text>`);
+    // 注意バッジ: 経路の途中に谷/山/急激な段差/アンダーパスがある場合、矢印を置き換えずに小さく添える
+    if (p.status !== "error") {
+      if (p.isPossibleUnderpass) {
+        // アンダーパスは特に重要な注意なので、他の谷バッジより優先し、少し大きめに強調表示
+        const badgeX = px + 15, badgeY = py - 15;
+        const cs = CAUTION_STYLE.underpass;
+        svgParts.push(`<circle cx="${badgeX}" cy="${badgeY}" r="10" fill="#3A1414" stroke="${cs.color}" stroke-width="2"/>`);
+        svgParts.push(`<text x="${badgeX}" y="${badgeY+4}" text-anchor="middle" fill="${cs.color}" font-size="11" font-weight="700">${cs.symbol}</text>`);
+      } else if (p.hasValley || p.hasHill) {
+        const badgeX = px + 15, badgeY = py - 15;
+        const cs = p.hasValley ? CAUTION_STYLE.valley : CAUTION_STYLE.hill;
+        svgParts.push(`<circle cx="${badgeX}" cy="${badgeY}" r="9" fill="#17242A" stroke="${cs.color}" stroke-width="1.5"/>`);
+        svgParts.push(`<text x="${badgeX}" y="${badgeY+4}" text-anchor="middle" fill="${cs.color}" font-size="11" font-weight="700">${cs.symbol}</text>`);
+      }
+      if (p.hasStep) {
+        const badgeX = px - 15, badgeY = py - 15;
+        const cs = CAUTION_STYLE.step;
+        svgParts.push(`<circle cx="${badgeX}" cy="${badgeY}" r="9" fill="#17242A" stroke="${cs.color}" stroke-width="1.5"/>`);
+        svgParts.push(`<text x="${badgeX}" y="${badgeY+4}" text-anchor="middle" fill="${cs.color}" font-size="11" font-weight="700">${cs.symbol}</text>`);
+      }
     }
   });
 
   document.getElementById("mapOverlay").innerHTML = svgParts.join("");
+  drawDistanceRings();
   if (currentHeading !== null) drawFacingIndicator();
 }
 
 // 各方向の断面図を小さな折れ線(スパークライン)で描く。数値を読まなくても形でわかる。
-function sparklineSVG(profile, status) {
-  const valid = profile.filter(p => p.elev !== null);
+function sparklineSVG(fullProfile, status, cutoffDist) {
+  const valid = fullProfile.filter(p => p.elev !== null);
   if (valid.length < 2) {
-    return `<svg width="72" height="30" viewBox="0 0 72 30"></svg>`;
+    return `<svg width="96" height="30" viewBox="0 0 96 30"></svg>`;
   }
-  const w = 72, h = 30, pad = 4;
+  const w = 96, h = 30, pad = 4;
   const values = valid.map(p => p.elev);
   const minV = Math.min(...values), maxV = Math.max(...values);
   const range = Math.max(maxV - minV, 0.2); // 平坦でも見えるように最低幅を確保
-  const maxDist = profile[profile.length - 1].dist;
-  const color = STATUS_STYLE[status].color;
+  const maxDist = FETCH_MAX_M; // 常に400m基準の横軸に固定(距離を切り替えても同じ横幅で比較できる)
+  const color = STATUS_STYLE[status] ? STATUS_STYLE[status].color : "#9FB3B8";
 
-  const pts = valid.map(p => {
-    const x = pad + (p.dist / maxDist) * (w - pad * 2);
-    const y = h - pad - ((p.elev - minV) / range) * (h - pad * 2);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
+  const xOf = dist => pad + (dist / maxDist) * (w - pad * 2);
+  const yOf = elev => h - pad - ((elev - minV) / range) * (h - pad * 2);
 
-  const startY = (h - pad - ((valid[0].elev - minV) / range) * (h - pad * 2)).toFixed(1);
-  const endY = (h - pad - ((valid[valid.length-1].elev - minV) / range) * (h - pad * 2)).toFixed(1);
-  const startX = (pad + (valid[0].dist / maxDist) * (w - pad * 2)).toFixed(1);
-  const endX = (pad + (valid[valid.length-1].dist / maxDist) * (w - pad * 2)).toFixed(1);
+  const pts = valid.map(p => `${xOf(p.dist).toFixed(1)},${yOf(p.elev).toFixed(1)}`);
+
+  // 50/100/200mの位置に薄い縦の目印線
+  const guides = [50, 100, 200].filter(d => d <= maxDist).map(d =>
+    `<line x1="${xOf(d).toFixed(1)}" y1="0" x2="${xOf(d).toFixed(1)}" y2="${h}" stroke="#35505A" stroke-width="1" stroke-dasharray="1,2"/>`
+  ).join("");
+
+  const startPt = valid[0];
+  const cutoffPt = [...valid].reverse().find(p => p.dist <= cutoffDist) || valid[0];
+
+  const startX = xOf(startPt.dist).toFixed(1), startY = yOf(startPt.elev).toFixed(1);
+  const cutX = xOf(cutoffPt.dist).toFixed(1), cutY = yOf(cutoffPt.elev).toFixed(1);
 
   return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-    <polyline points="${pts.join(" ")}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="${startX}" cy="${startY}" r="2.2" fill="#EFEAE0"/>
-    <circle cx="${endX}" cy="${endY}" r="2.2" fill="${color}"/>
+    ${guides}
+    <polyline points="${pts.join(" ")}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/>
+    <circle cx="${startX}" cy="${startY}" r="2" fill="#EFEAE0"/>
+    <circle cx="${cutX}" cy="${cutY}" r="2.6" fill="${color}"/>
   </svg>`;
 }
 
@@ -823,25 +974,58 @@ function renderGrid(points) {
     if (p.status !== "error") {
       const netTxt = `${p.netDiff >= 0 ? "+" : ""}${p.netDiff.toFixed(1)}m`;
       detail = p.status === "flat" ? style.note : `${style.note} / ${netTxt}`;
-      if (p.hasValley) {
+      if (p.isPossibleUnderpass) {
+        detail += ` ・ 大雨時冠水注意`;
+      } else if (p.hasValley) {
         detail += ` ・ 途中${(p.start - p.minV).toFixed(1)}m下がる場所あり(要注意)`;
       } else if (p.hasHill) {
         detail += ` ・ 途中${(p.maxV - p.start).toFixed(1)}m上がる場所あり`;
       }
+      if (p.hasStep) {
+        detail += ` ・ 10mで${p.maxStepJump.toFixed(1)}mの急な段差あり(盛り土・堤防・擁壁の可能性)`;
+      }
+      if (p.isStableClimb) {
+        detail += ` ・ ◎ 上り下りが少なく安定して高い場所へ向かう`;
+      } else if (p.isOscillating) {
+        detail += ` ・ ⚠ 上り下りを${p.reversalCount}回繰り返しており、この方向は高台へ安定して向かうとは限らない`;
+      }
     }
 
-    const cautionMark = p.hasValley ? `<span style="color:${CAUTION_STYLE.valley.color}">${CAUTION_STYLE.valley.symbol}</span>`
-                       : p.hasHill  ? `<span style="color:${CAUTION_STYLE.hill.color}">${CAUTION_STYLE.hill.symbol}</span>`
-                       : "";
+    const cautionMark =
+      (p.isPossibleUnderpass ? `<span style="color:${CAUTION_STYLE.underpass.color}">${CAUTION_STYLE.underpass.symbol}</span>`
+        : p.hasValley ? `<span style="color:${CAUTION_STYLE.valley.color}">${CAUTION_STYLE.valley.symbol}</span>`
+        : p.hasHill   ? `<span style="color:${CAUTION_STYLE.hill.color}">${CAUTION_STYLE.hill.symbol}</span>` : "") +
+      (p.hasStep   ? `<span style="color:${CAUTION_STYLE.step.color}">${CAUTION_STYLE.step.symbol}</span>` : "") +
+      (p.isStableClimb ? `<span style="color:#5FD98F">◎</span>` : p.isOscillating ? `<span style="color:#9FB3B8">〜</span>` : "");
 
     row.innerHTML = `
       <div class="dir">${p.label}</div>
       <div class="arrow" style="color:${style.color}">${style.symbol}${cautionMark}</div>
-      ${sparklineSVG(p.profile, p.status)}
+      ${sparklineSVG(p.fullProfile || p.profile, p.status, SAMPLE_MAX_M)}
       <div class="diff">${detail}</div>
     `;
     gridEl.appendChild(row);
   });
+
+  renderBestClimbSummary(points);
+}
+
+// 8方向のうち「安定して高い場所へ向かう」方向があれば、一覧の上に要約として表示する
+function renderBestClimbSummary(points) {
+  const summaryEl = document.getElementById("bestClimbSummary");
+  if (!summaryEl) return;
+  const candidates = points.filter(p => p.status === "up" && p.isStableClimb);
+  if (candidates.length === 0) {
+    summaryEl.style.display = "none";
+    summaryEl.innerHTML = "";
+    return;
+  }
+  candidates.sort((a, b) => b.netDiff - a.netDiff);
+  const best = candidates[0];
+  const others = candidates.slice(1).map(p => p.label);
+  summaryEl.style.display = "block";
+  summaryEl.innerHTML = `<span style="color:#5FD98F; font-weight:700;">◎ ${best.label}</span>方向が、上り下りを繰り返さず最も安定して高い場所へ向かっています(+${best.netDiff.toFixed(1)}m)。` +
+    (others.length ? `他に ${others.join("・")} 方向も同様に安定した登りです。` : "");
 }
 
 // 数秒間、複数回位置情報を取得し、最も精度の良い(accuracyが小さい)結果を採用する。
@@ -943,14 +1127,14 @@ async function run() {
     document.getElementById("shelterLink").href =
       `https://www.google.com/maps/search/避難場所/@${lat},${lon},15z`;
 
-    const points = [];
+    const rawProfiles = [];
     for (let i = 0; i < DIRS.length; i++) {
       const d = DIRS[i];
-      setStatus(`${d.label}方向を調べています…(${i+1}/${DIRS.length}、${SAMPLE_DISTANCES.length}地点) / 経過 ${elapsed()}秒`);
+      setStatus(`${d.label}方向を調べています…(${i+1}/${DIRS.length}、${FETCH_DISTANCES.length}地点/最大400m) / 経過 ${elapsed()}秒`);
 
-      // 方向内の各地点は最大8並列で取得(APIへの同時負荷を抑える)
+      // 方向内の各地点は最大8並列で取得(APIへの同時負荷を抑える)。常に400mまで取得しキャッシュしておく。
       const settled = await runLimited(
-        SAMPLE_DISTANCES.map(dist => () => {
+        FETCH_DISTANCES.map(dist => () => {
           const dest = destPoint(lat, lon, d.angle, dist);
           return fetchElevation(dest.lat, dest.lon);
         }),
@@ -959,22 +1143,35 @@ async function run() {
 
       const profile = [{ dist: 0, elev: hereElev }];
       settled.forEach((r, idx) => {
-        const dist = SAMPLE_DISTANCES[idx];
+        const dist = FETCH_DISTANCES[idx];
         profile.push({ dist, elev: r.status === "fulfilled" ? Number(r.value) : null });
       });
 
-      const cls = classifyProfile(profile);
-      points.push({ ...d, profile, ...cls });
+      rawProfiles.push({ ...d, profile });
     }
+
+    lastRawProfiles = rawProfiles;
+    const points = buildPointsFromCache();
 
     renderGrid(points);
 
     resultEl.style.display = "block";
     drawContourMap();
     drawMapOverlay(points);
-    setStatus(`完了(所要時間 約${elapsed()}秒)`);
+    setStatus(`完了(所要時間 約${elapsed()}秒、400mまで取得済み・距離切替は再取得不要)`);
     locateBtn.disabled = false;
   }
+}
+
+// キャッシュ済みの400mプロファイルから、現在選択中のSAMPLE_MAX_M分だけを切り出して再分類する。
+// (通信を伴わないため、距離スイッチの切替は即座に反映される)
+function buildPointsFromCache() {
+  if (!lastRawProfiles) return null;
+  return lastRawProfiles.map(rp => {
+    const slicedProfile = rp.profile.filter(p => p.dist <= SAMPLE_MAX_M);
+    const cls = classifyProfile(slicedProfile);
+    return { key: rp.key, label: rp.label, angle: rp.angle, profile: slicedProfile, fullProfile: rp.profile, ...cls };
+  });
 }
 
 locateBtn.addEventListener("click", run);
@@ -1072,6 +1269,36 @@ if (/Android/i.test(navigator.userAgent)) {
 } else {
   showHelp("iphone");
 }
+
+// ---- 調べる距離の切り替え(100m/200m/400m) ----
+const distButtons = [
+  document.getElementById("dist50"),
+  document.getElementById("dist100"),
+  document.getElementById("dist200"),
+  document.getElementById("dist400"),
+];
+distButtons.forEach(btn => {
+  btn.addEventListener("click", () => {
+    const dist = parseInt(btn.dataset.dist, 10);
+    if (dist === SAMPLE_MAX_M) return;
+    SAMPLE_MAX_M = dist;
+    distButtons.forEach(b => b.classList.toggle("active", b === btn));
+
+    // 説明文の「200m」表記を選択中の距離に合わせて更新
+    document.querySelector(".sub").textContent =
+      `現在地を中心に、8方向それぞれ${dist}m先まで10m間隔で標高を調べ、断面の形（谷や坂の途中の凹凸も含む）を矢印とミニグラフで表示します。国土地理院の標高データを使用します。`;
+    const pointsAtDist = Math.floor(dist / SAMPLE_STEP_M) + 1;
+    document.getElementById("footNote").textContent =
+      `データ提供：国土地理院 標高API・標準地図タイル。矢印は各方向10m間隔で${dist}mまで(${pointsAtDist}地点、合計${pointsAtDist * 8}地点分)の標高データをもとに判定しています。実際の取得は毎回400mまでまとめて行うため、距離の切替は再通信せず即座に反映されます。上り/下り/谷/山の判定にはデータ精度を考慮し0.3m以上の差を使用しています(0.3m未満はフラット扱い)。判断に迷う場合は背景の等高線そのものを優先してください。位置情報・標高の取得はこのページ上でお使いの端末が直接おこないます。`;
+
+    if (lastRawProfiles) {
+      // すでにデータを取得済みなら、キャッシュから即座に再計算(通信なし)
+      const points = buildPointsFromCache();
+      renderGrid(points);
+      drawMapOverlay(points);
+    }
+  });
+});
 </script>
 </body>
 </html>
