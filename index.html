@@ -209,6 +209,14 @@
     font-variant-numeric: tabular-nums;
   }
   .here .val span { font-size: 15px; font-weight: 400; color: var(--ink-dim); }
+  .verify-link {
+    display: block;
+    text-align: center;
+    margin-top: 8px;
+    font-size: 12.5px;
+    color: var(--up);
+    text-decoration: none;
+  }
 
   .legend {
     display: flex;
@@ -339,6 +347,8 @@
     <div class="here">
       <div class="label">現在地の標高</div>
       <div class="val" id="hereVal">--<span> m</span></div>
+      <p id="accuracyNote" class="help-note" style="text-align:center; margin-top:6px;"></p>
+      <a id="verifyLink" class="verify-link" href="https://maps.gsi.go.jp/" target="_blank" rel="noopener">地理院地図で同じ地点を開いて数値を確認する ↗</a>
     </div>
 
     <div class="map-section">
@@ -364,8 +374,8 @@
       </div>
       <div class="legend" style="margin-top:6px;">
         <span><span class="dot" style="background:var(--flat)"></span>ほぼ平ら</span>
-        <span><span class="dot" style="background:#D9634C"></span>途中に谷あり</span>
-        <span><span class="dot" style="background:#8FD35F"></span>途中に山あり</span>
+        <span><span class="dot" style="background:#B255D9"></span>途中に谷あり</span>
+        <span><span class="dot" style="background:#5FD98F"></span>途中に山あり</span>
       </div>
       <p class="map-note">背景は国土地理院「標準地図」タイル(実際の等高線入り)。矢印は画面の上下だけを使い、上向き＝登り・下向き＝下りを表します(コンパス上の方角とは無関係)。色が赤や濃い青に近いほど急勾配、太く長い矢印ほど高低差が大きいことを表します。オレンジの点が現在地です。</p>
     </div>
@@ -572,8 +582,8 @@ const STATUS_STYLE = {
   up:     { color: "#E8A33D", symbol: "↑",  note: "上り" },
   down:   { color: "#5FA8D3", symbol: "↓",  note: "下り" },
   flat:   { color: "#6E8288", symbol: "―",  note: "ほぼ平ら" },
-  valley: { color: "#D9634C", symbol: "▼",  note: "途中に低い場所あり(要注意)" },
-  hill:   { color: "#8FD35F", symbol: "▲",  note: "途中に高い場所あり" },
+  valley: { color: "#B255D9", symbol: "▼",  note: "途中に低い場所あり(要注意)" },
+  hill:   { color: "#5FD98F", symbol: "▲",  note: "途中に高い場所あり" },
   error:  { color: "#586A6E", symbol: "?",  note: "取得できず" },
 };
 
@@ -730,11 +740,45 @@ function renderGrid(points) {
   });
 }
 
+// 数秒間、複数回位置情報を取得し、最も精度の良い(accuracyが小さい)結果を採用する。
+// 十分に良い精度(GOOD_ACCURACY_M)が得られたら早めに切り上げる。
+const WATCH_DURATION_MS = 6000;
+const GOOD_ACCURACY_M = 15;
+
+function getBestPosition(onProgress) {
+  return new Promise((resolve, reject) => {
+    let best = null;
+    let settled = false;
+    let watchId = null;
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      if (best) resolve(best); else reject(new Error("no-fix"));
+    };
+
+    watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        if (!best || pos.coords.accuracy < best.coords.accuracy) {
+          best = pos;
+          if (onProgress) onProgress(pos);
+        }
+        if (pos.coords.accuracy <= GOOD_ACCURACY_M) finish();
+      },
+      (err) => { if (!best) { settled = true; if (watchId !== null) navigator.geolocation.clearWatch(watchId); reject(err); } },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: WATCH_DURATION_MS }
+    );
+
+    setTimeout(finish, WATCH_DURATION_MS);
+  });
+}
+
 async function run() {
   clearError();
   resultEl.style.display = "none";
   locateBtn.disabled = true;
-  setStatus("現在地を取得しています…");
+  setStatus("現在地を測位しています…(数秒、精度を高めています)");
 
   if (!("geolocation" in navigator)) {
     showError("お使いの端末・ブラウザは位置情報取得に対応していません。");
@@ -743,16 +787,39 @@ async function run() {
     return;
   }
 
-  navigator.geolocation.getCurrentPosition(async (pos) => {
+  let pos;
+  try {
+    pos = await getBestPosition((p) => {
+      setStatus(`現在地を測位しています…(現在の誤差 ±${Math.round(p.coords.accuracy)}m)`);
+    });
+  } catch (err) {
+    let msg = "位置情報を取得できませんでした。";
+    if (err.code === 1) msg = "位置情報の利用が許可されていません。下の「端末の設定方法」を確認してください。";
+    else if (err.code === 2) msg = "位置情報を取得できませんでした。電波状況の良い場所で再試行してください。位置情報サービス自体がオフの場合は下の設定方法をご確認ください。";
+    else if (err.code === 3) msg = "位置情報の取得がタイムアウトしました。もう一度お試しください。";
+    showError(msg);
+    locateBtn.disabled = false;
+    setStatus("");
+    return;
+  }
+
+  {
     const lat = pos.coords.latitude;
     const lon = pos.coords.longitude;
+    const accuracy = pos.coords.accuracy;
     const t0 = performance.now();
     const elapsed = () => ((performance.now() - t0) / 1000).toFixed(1);
 
+    // 現在地の標高は、DEMの単点ノイズの影響を減らすため近傍5点(中心+東西南北5m)を平均する
     setStatus("現在地の標高を取得しています…");
     let hereElev;
     try {
-      hereElev = Number(await fetchElevation(lat, lon));
+      const nearBearings = [0, 90, 180, 270]; // 北・東・南・西
+      const near = [{ lat, lon }, ...nearBearings.map(b => destPoint(lat, lon, b, 5))];
+      const settled = await runLimited(near.map(pt => () => fetchElevation(pt.lat, pt.lon)), 5);
+      const vals = settled.filter(r => r.status === "fulfilled").map(r => Number(r.value));
+      if (vals.length === 0) throw new Error("no-data");
+      hereElev = vals.reduce((a,b) => a+b, 0) / vals.length;
     } catch (e) {
       showError("標高データの取得に失敗しました。通信環境を確認するか、しばらくしてから再試行してください。");
       locateBtn.disabled = false;
@@ -761,6 +828,8 @@ async function run() {
     }
 
     hereVal.innerHTML = `${hereElev.toFixed(1)}<span> m</span>`;
+    document.getElementById("accuracyNote").textContent = `位置精度 ±${Math.round(accuracy)}m(GPS申告値)・標高は近傍5点の平均`;
+    document.getElementById("verifyLink").href = `https://maps.gsi.go.jp/#17/${lat}/${lon}/`;
 
     mapState = { lat, lon, zoom: 16 };
 
@@ -801,15 +870,7 @@ async function run() {
     drawMapOverlay(points);
     setStatus(`完了(所要時間 約${elapsed()}秒)`);
     locateBtn.disabled = false;
-  }, (err) => {
-    let msg = "位置情報を取得できませんでした。";
-    if (err.code === 1) msg = "位置情報の利用が許可されていません。下の「端末の設定方法」を確認してください。";
-    else if (err.code === 2) msg = "位置情報を取得できませんでした。電波状況の良い場所で再試行してください。位置情報サービス自体がオフの場合は下の設定方法をご確認ください。";
-    else if (err.code === 3) msg = "位置情報の取得がタイムアウトしました。もう一度お試しください。";
-    showError(msg);
-    locateBtn.disabled = false;
-    setStatus("");
-  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+  }
 }
 
 locateBtn.addEventListener("click", run);
