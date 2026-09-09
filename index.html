@@ -481,7 +481,7 @@
         <span><span class="dot" style="background:#C79A5B"></span>⚠ 急に高くなる(盛り土・堤防等の可能性)</span>
         <span><span class="dot" style="background:#FF5252"></span>🌊 急に低くなる(アンダーパス・冠水注意)</span>
       </div>
-      <p class="map-note">背景は国土地理院「標準地図」タイル(実際の等高線入り)。地図のズームは選んだ距離に応じて自動調整されます。矢印(↑↓／横棒)は常に「全体として登りか下りか平らか」だけを表します(コンパス上の方角とは無関係)。色が赤や濃い青に近いほど急勾配、太く長い矢印ほど高低差が大きいことを表します。点線の同心円は、常に実際の50m・100m・200m・400m地点を示す目印です。オレンジの点が現在地です。</p>
+      <p class="map-note">背景は国土地理院「標準地図」タイル(実際の等高線入り)。地図のズームは選んだ距離に応じて自動調整されます。矢印(↑↓／横棒)は常に「全体として登りか下りか平らか」だけを表します(コンパス上の方角とは無関係)。色が赤や濃い青に近いほど急勾配、太く長い矢印ほど高低差が大きいことを表します。点線の同心円は、選んでいる距離より内側の目印(例:400m選択時は50・100・200m)を示します。オレンジの点が現在地です。</p>
 
       <div class="heading-row">
         <button id="segmentedToggle">連続距離表示(区間ごとの平均勾配)</button>
@@ -707,7 +707,9 @@ function drawDistanceRings() {
   const svgPerPixel = 300 / frameSize; // 物理ピクセル→svg座標への換算
 
   let parts = [];
-  RING_DISTANCES_M.forEach(distM => {
+  // 選んでいる距離(SAMPLE_MAX_M)自体の円は矢印の位置と重複するため表示しない。
+  // それより小さい距離の目印だけを補助線として表示する(400m選択時→50/100/200m、200m選択時→50/100m、など)。
+  RING_DISTANCES_M.filter(distM => distM < SAMPLE_MAX_M).forEach(distM => {
     const radiusPx = distM / mpp;
     const radiusSvg = radiusPx * svgPerPixel;
     parts.push(`<circle cx="${cx}" cy="${cy}" r="${radiusSvg.toFixed(1)}" fill="none" stroke="#EFEAE0" stroke-width="1" stroke-dasharray="3,4" opacity="0.35"/>`);
