@@ -194,6 +194,16 @@
     margin-top: 8px;
     line-height: 1.6;
   }
+  .tap-hint {
+    font-size: 12px;
+    color: var(--ink);
+    text-align: center;
+    margin-top: 6px;
+    padding: 6px 8px;
+    background: rgba(239, 234, 224, 0.06);
+    border-radius: 8px;
+  }
+  .tap-hint b { color: var(--up); }
 
   .heading-row {
     margin-top: 12px;
@@ -451,6 +461,7 @@
         <svg id="mapOverlay" viewBox="0 0 300 300" preserveAspectRatio="none"></svg>
         <div class="map-marker" id="mapMarker"></div>
       </div>
+      <p class="tap-hint">👆 <b>気になる方向</b>をタップ</p>
       <div class="legend">
         <span><span class="dot" style="background:#E8A33D"></span>緩やかな登り</span>
         <span><span class="dot" style="background:#D9302B"></span>急な登り</span>
@@ -467,10 +478,10 @@
         <span><span class="dot" style="background:#5FD98F"></span>▲ 経路の途中に山</span>
       </div>
       <div class="legend" style="margin-top:6px;">
-        <span><span class="dot" style="background:#C79A5B"></span>▮ 急な段差(盛り土・堤防等の可能性)</span>
-        <span><span class="dot" style="background:#FF5252"></span>U アンダーパスの可能性(冠水注意)</span>
+        <span><span class="dot" style="background:#C79A5B"></span>⚠ 急に高くなる(盛り土・堤防等の可能性)</span>
+        <span><span class="dot" style="background:#FF5252"></span>🌊 急に低くなる(アンダーパス・冠水注意)</span>
       </div>
-      <p class="map-note">背景は国土地理院「標準地図」タイル(実際の等高線入り)。地図は常に最大距離(400m)が収まる縮尺に固定されており、距離スイッチを切り替えても地図は動かず、矢印だけが選んだ距離の実際の位置(中心からの実距離)へ移動します。矢印(↑↓／横棒)は常に「全体として登りか下りか平らか」だけを表します(コンパス上の方角とは無関係)。色が赤や濃い青に近いほど急勾配、太く長い矢印ほど高低差が大きいことを表します。右上の小さな▼▲は、全体の傾向とは別に「経路の途中に谷や山がある」ことを示す注意バッジで、矢印の意味を変えるものではありません。点線の同心円は、常に実際の50m・100m・200m地点を示す目印です。オレンジの点が現在地です。方位の矢印をタップすると、下の一覧表の該当する方向へジャンプします。</p>
+      <p class="map-note">背景は国土地理院「標準地図」タイル(実際の等高線入り)。地図のズームは選んだ距離に応じて自動調整されます。矢印(↑↓／横棒)は常に「全体として登りか下りか平らか」だけを表します(コンパス上の方角とは無関係)。色が赤や濃い青に近いほど急勾配、太く長い矢印ほど高低差が大きいことを表します。点線の同心円は、常に実際の50m・100m・200m・400m地点を示す目印です。オレンジの点が現在地です。</p>
 
       <div class="heading-row">
         <button id="segmentedToggle">連続距離表示(区間ごとの平均勾配)</button>
@@ -497,7 +508,7 @@
           <li>標高データは国土地理院の標高APIによる推定値です。都市部など整備が進んだ地域は5mメッシュ、山間部などは10mメッシュ相当のデータが使われており、地域によって精度にばらつきがあります。</li>
           <li>上り/下り/谷/山の判定には0.3m以上の高低差を基準にしています。これより小さい凹凸はデータの誤差として無視される場合があります。</li>
           <li>矢印は10m間隔でサンプリングした21地点をもとにした推定であり、地点と地点の間にあるごく短い急勾配の構造(狭いアンダーパスなど)は見逃す場合があります。実際の等高線(背景の地図)の方が一次情報として確実です。</li>
-          <li>矢印(↑↓／横棒)は常に「全体として登りか下りか平らか」を表し、経路の途中に谷/山がある場合は右上の小さな▼▲バッジで別途示しています。</li>
+          <li>矢印(↑↓／横棒)は常に「全体として登りか下りか平らか」を表し、経路の途中に谷/山がある場合は右上の小さな△▽バッジで別途示しています。</li>
           <li>標高データは「そこにその高さの地面がある」という数値だけを表し、なだらかな坂か、鉄道の盛り土・堤防・擁壁のような人工的な段差かは区別できません。10mの区間で1m以上の急激な変化がある場合、左上に▮バッジで注意を示していますが、これはあくまで目安であり、実際に直登できるか(あるいは踏切や階段まで迂回が必要か)は現地で確認してください。</li>
           <li>「アンダーパスの可能性(U)」バッジは、3m以上の掘り下げの後、前後1m以内の高さに戻るという特徴的な形状を検出した場合に表示しています。これは実際のアンダーパスの構造(建築限界を確保するための掘り下げと復帰)を踏まえた経験則であり、正式なアンダーパス台帳や道路管理者のデータに基づくものではありません。同様の形状を持つ他の地形(切通しなど)も該当する場合があります。大雨時にアンダーパスは冠水しやすいため、該当箇所は特に注意してください。</li>
         </ul>
@@ -511,7 +522,7 @@
     </details>
 
     <div class="best-climb-summary" id="bestClimbSummary" style="display:none;"></div>
-    <p class="map-note" style="margin-top:2px;">各方向のグラフ内の丸い印：<span style="color:#C79A5B;">土</span>=急に高くなり、その後も高いまま(盛土・堤防等の可能性)／<span style="color:#FF5252;">U</span>=急に低くなり、その後も低いまま(アンダーパスの可能性)／<span style="color:#C79A5B;">盛</span>=登ってすぐ元の高さに戻る単独の盛り土／<span style="color:#FF5252;">窪</span>=下ってすぐ元の高さに戻る単独の窪み</p>
+    <p class="map-note" style="margin-top:2px;">各方向のグラフ内の印：<span style="color:#C79A5B;">⚠</span>=急に高くなる箇所(盛り土・堤防等)／<span style="color:#FF5252;">🌊</span>=急に低くなる箇所(アンダーパス・冠水注意)</p>
     <div class="grid" id="grid"></div>
 
     <div class="official-block">
@@ -650,7 +661,7 @@ function drawContourMap() {
 }
 
 // 選んだ調査距離とは無関係に、実際の50m・100m・200m地点を同心円の目印として表示する
-const RING_DISTANCES_M = [50, 100, 200];
+const RING_DISTANCES_M = [50, 100, 200, 400];
 
 function metersPerPixel(lat, zoom) {
   return 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, zoom);
@@ -853,11 +864,11 @@ const STATUS_STYLE = {
 
 // 「谷あり」「山あり」は上り/下りを置き換えず、注意バッジとして矢印に添える
 const CAUTION_STYLE = {
-  valley:    { color: "#B255D9", symbol: "▼", note: "途中に低い場所あり(要注意)" },
-  hill:      { color: "#5FD98F", symbol: "▲", note: "途中に高い場所あり" },
-  stepUp:    { color: "#C79A5B", symbol: "▮", note: "急に高くなる段差(盛り土・堤防・擁壁の可能性)" },
-  stepDown:  { color: "#E8794A", symbol: "▮", note: "急に低くなる段差(アンダーパスの可能性)" },
-  underpass: { color: "#FF5252", symbol: "U", note: "アンダーパスの可能性(大雨時に冠水しやすい構造です。要注意)" },
+  valley:    { color: "#B255D9", symbol: "▽", note: "途中に低い場所あり(要注意)" },
+  hill:      { color: "#5FD98F", symbol: "△", note: "途中に高い場所あり" },
+  stepUp:    { color: "#C79A5B", symbol: "⚠", note: "急に高くなる段差(盛り土・堤防・擁壁の可能性)" },
+  stepDown:  { color: "#E8794A", symbol: "⚠", note: "急に低くなる段差(アンダーパスの可能性)" },
+  underpass: { color: "#FF5252", symbol: "🌊", note: "アンダーパスの可能性(大雨時に冠水しやすい構造です。要注意)" },
 };
 
 // 地図(タイル画像)の上に、方向ごとの高低を矢印で重ねて描く。
@@ -1102,7 +1113,7 @@ function sparklineSVG(fullProfile, status, cutoffDist) {
       const my = yOf(fullProfile[peakIdx].elev);
       const isMound = cur.jump > 0; // 登ってから下る=盛り土 / 下ってから登る=窪み
       const markColor = isMound ? CAUTION_STYLE.stepUp.color : CAUTION_STYLE.underpass.color;
-      const label = isMound ? "盛" : "窪";
+      const label = isMound ? "⚠" : "🌊";
       stepMarks += `<circle cx="${mx}" cy="${my.toFixed(1)}" r="5" fill="#17242A" stroke="${markColor}" stroke-width="1.3"/>`;
       stepMarks += `<text x="${mx}" y="${(my+2.3).toFixed(1)}" text-anchor="middle" fill="${markColor}" font-size="6.5" font-weight="700">${label}</text>`;
       k++; // 2つ分をまとめて消費したので次のペアへ
@@ -1115,7 +1126,7 @@ function sparklineSVG(fullProfile, status, cutoffDist) {
     const my = (yOf(fullProfile[cur.i].elev) + yOf(fullProfile[cur.i + 1].elev)) / 2;
     const isUp = cur.jump > 0;
     const markColor = isUp ? CAUTION_STYLE.stepUp.color : CAUTION_STYLE.underpass.color;
-    const label = isUp ? "土" : "U";
+    const label = isUp ? "⚠" : "🌊";
     stepMarks += `<circle cx="${mx}" cy="${my.toFixed(1)}" r="5" fill="#17242A" stroke="${markColor}" stroke-width="1.3"/>`;
     stepMarks += `<text x="${mx}" y="${(my+2.3).toFixed(1)}" text-anchor="middle" fill="${markColor}" font-size="6.5" font-weight="700">${label}</text>`;
   }
@@ -1278,9 +1289,9 @@ async function run() {
     document.getElementById("accuracyNote").textContent = `位置精度 ±${Math.round(accuracy)}m(GPS申告値)・標高は近傍5点の平均`;
     document.getElementById("verifyLink").href = `https://maps.gsi.go.jp/#17/${lat}/${lon}/`;
 
-    // 地図は常に最大距離(400m)が収まるズームに固定する。距離スイッチを切り替えても
-    // 地図自体は動かさず、矢印だけが実際の距離の位置(pointAtRealDistance)へ移動する。
-    mapState = { lat, lon, zoom: bestZoomForDistance(lat, FETCH_MAX_M) };
+    // 地図のズームは選んだ距離に応じて調整する(距離が短いほど拡大)。
+    // 400mの余白の取り方(marginRatio)を基準に、他の距離もバランスよく収まるようにしている。
+    mapState = { lat, lon, zoom: bestZoomForDistance(lat, SAMPLE_MAX_M) };
 
     // 公式サイトへ現在地付きで飛べるようリンク先を更新
     document.getElementById("hazardMapLink").href =
@@ -1320,6 +1331,11 @@ async function run() {
     drawContourMap();
     drawMapOverlay(points);
     setStatus(`完了(所要時間 約${elapsed()}秒、400mまで取得済み・距離切替は再取得不要)`);
+
+    // 結果が出たら、下にある地図セクションが見えるところまで自動でスクロールする
+    try {
+      document.querySelector(".map-section").scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (e) { /* 対応していない環境でも本体の処理には影響させない */ }
   } catch (e) {
     // 想定外のエラーが起きても、ボタンが無効なまま固まって見えることがないようにする
     console.error(e);
@@ -1483,9 +1499,13 @@ distButtons.forEach(btn => {
 
     if (lastRawProfiles) {
       // すでにデータを取得済みなら、キャッシュから即座に再計算(通信なし)。
-      // 地図(ズーム)は常に400m基準で固定のまま動かさず、矢印だけが実際の距離の位置へ移動する。
+      // 地図のズームも選んだ距離に応じて調整する。
       const points = buildPointsFromCache();
       renderGrid(points);
+      if (mapState.lat !== null) {
+        mapState.zoom = bestZoomForDistance(mapState.lat, SAMPLE_MAX_M);
+        drawContourMap();
+      }
       drawMapOverlay(points);
     }
   });
