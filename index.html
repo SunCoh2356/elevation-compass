@@ -511,7 +511,7 @@
     </details>
 
     <div class="best-climb-summary" id="bestClimbSummary" style="display:none;"></div>
-    <p class="map-note" style="margin-top:2px;">各方向のグラフ内の丸い印：<span style="color:#C79A5B;">土</span>=急に高くなる箇所(盛土・堤防等の可能性)、<span style="color:#FF5252;">U</span>=急に低くなる箇所(アンダーパスの可能性)</p>
+    <p class="map-note" style="margin-top:2px;">各方向のグラフ内の丸い印：<span style="color:#C79A5B;">土</span>=急に高くなり、その後も高いまま(盛土・堤防等の可能性)／<span style="color:#FF5252;">U</span>=急に低くなり、その後も低いまま(アンダーパスの可能性)／<span style="color:#C79A5B;">盛</span>=登ってすぐ元の高さに戻る単独の盛り土／<span style="color:#FF5252;">窪</span>=下ってすぐ元の高さに戻る単独の窪み</p>
     <div class="grid" id="grid"></div>
 
     <div class="official-block">
@@ -1076,18 +1076,44 @@ function sparklineSVG(fullProfile, status, cutoffDist) {
   const startX = xOf(startPt.dist).toFixed(1), startY = yOf(startPt.elev).toFixed(1);
   const cutX = xOf(cutoffPt.dist).toFixed(1), cutY = yOf(cutoffPt.elev).toFixed(1);
 
-  // 急な段差(10mで1m超)がある区間には、実際の位置に小さな印を付ける。
-  // 高くなる場合=盛土の可能性(茶色「土」)、低くなる場合=アンダーパスの可能性(赤色「U」)
-  let stepMarks = "";
+  // 急な段差(10mで1m超)がある区間を検出する。
+  // 「登ってすぐ同じ高さまで戻る」「下ってすぐ同じ高さまで戻る」場合は、平らな地面の上の
+  // 単独の盛り土・窪みであり、その後アンダーパスのように沈み込んでいるわけではないため、
+  // 2つの別々の印(土+U)にはせず、1つの印にまとめる。
+  const rawJumps = [];
   for (let i = 0; i < fullProfile.length - 1; i++) {
     const a = fullProfile[i].elev, b = fullProfile[i + 1].elev;
     if (a === null || b === null) continue;
     const jump = b - a;
     if (Math.abs(jump) <= STEP_THRESHOLD_M) continue;
-    const midDist = (fullProfile[i].dist + fullProfile[i + 1].dist) / 2;
+    rawJumps.push({ i, jump });
+  }
+
+  let stepMarks = "";
+  for (let k = 0; k < rawJumps.length; k++) {
+    const cur = rawJumps[k];
+    const next = rawJumps[k + 1];
+    // 隣接する区間(1区間=10m差)で、向きが逆かつ量がほぼ相殺する場合は「単独の盛り土/窪み」としてまとめる
+    if (next && next.i === cur.i + 1 && Math.sign(next.jump) === -Math.sign(cur.jump) &&
+        Math.abs(cur.jump + next.jump) < FLAT_THRESHOLD * 2) {
+      const peakIdx = cur.i + 1; // 山(または谷)の頂点にあたる地点
+      const peakDist = fullProfile[peakIdx].dist;
+      const mx = xOf(peakDist).toFixed(1);
+      const my = yOf(fullProfile[peakIdx].elev);
+      const isMound = cur.jump > 0; // 登ってから下る=盛り土 / 下ってから登る=窪み
+      const markColor = isMound ? CAUTION_STYLE.stepUp.color : CAUTION_STYLE.underpass.color;
+      const label = isMound ? "盛" : "窪";
+      stepMarks += `<circle cx="${mx}" cy="${my.toFixed(1)}" r="5" fill="#17242A" stroke="${markColor}" stroke-width="1.3"/>`;
+      stepMarks += `<text x="${mx}" y="${(my+2.3).toFixed(1)}" text-anchor="middle" fill="${markColor}" font-size="6.5" font-weight="700">${label}</text>`;
+      k++; // 2つ分をまとめて消費したので次のペアへ
+      continue;
+    }
+
+    // まとめられない単独の段差(その後も高い/低いままの場合)は、これまで通り土/Uで表示
+    const midDist = (fullProfile[cur.i].dist + fullProfile[cur.i + 1].dist) / 2;
     const mx = xOf(midDist).toFixed(1);
-    const my = (yOf(a) + yOf(b)) / 2;
-    const isUp = jump > 0;
+    const my = (yOf(fullProfile[cur.i].elev) + yOf(fullProfile[cur.i + 1].elev)) / 2;
+    const isUp = cur.jump > 0;
     const markColor = isUp ? CAUTION_STYLE.stepUp.color : CAUTION_STYLE.underpass.color;
     const label = isUp ? "土" : "U";
     stepMarks += `<circle cx="${mx}" cy="${my.toFixed(1)}" r="5" fill="#17242A" stroke="${markColor}" stroke-width="1.3"/>`;
