@@ -692,7 +692,7 @@ function drawContourMap() {
   drawDistanceRings();
 }
 
-// 指定したスタイルのタイル画像を、共通のタイル位置計算で描画する(標準/淡色地図・活断層図オーバーレイで共用)
+// 指定したスタイルのタイル画像を、共通のタイル位置計算で描画する(標準/淡色地図の切り替えに使用)
 function drawTileLayer(elId, style, firstTileX, firstTileY, tilesNeeded, n, zoom, originX, originY, frameSize) {
   const tilesEl = document.getElementById(elId);
   tilesEl.innerHTML = "";
