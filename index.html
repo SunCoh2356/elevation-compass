@@ -648,6 +648,11 @@ let lastRawProfiles = null; // {key,label,angle,profile:[{dist,elev}...](400mま
 const FLAT_THRESHOLD = 0.3; // これ未満の差は「ほぼ平ら」扱い(m)
 // 隣接する10m区間だけで急激に高さが変わっている場合、なだらかな坂ではなく人工的な段差(盛り土・アンダーパス等)の可能性が高い
 const STEP_THRESHOLD_M = 1.0;
+// 道路構造令などで定められる道路の最急勾配は、一般的に上限でもおおむね18%程度とされる。
+// 1区間(10m)でこれを超える変化は、通常の道路法面としては物理的に成立し得ないため、
+// ほぼ確実に盛り土の法面・擁壁・アンダーパスの壁面などの人工構造物と判断できる。
+const MAX_ROAD_GRADE_PCT = 18;
+const IMPOSSIBLE_GRADE_M = (MAX_ROAD_GRADE_PCT / 100) * SAMPLE_STEP_M; // 10m換算でこれを超えたら「道路としてあり得ない」
 
 const locateBtn = document.getElementById("locate");
 const statusEl = document.getElementById("status");
@@ -1380,7 +1385,7 @@ function sparklineSVG(fullProfile, status, cutoffDist) {
   // なだらかに複数区間に分かれている場合(例: 10mごとに0.4mずつ、計3区間で1.2m登る)は
   // 検知されず、下り側だけが単独の「アンダーパス」として誤判定されることがあった。
   // 前後60m以内で、その点が周囲より明確に高い(低い)かどうかで山・谷そのものを判定する。
-  const LOCAL_WINDOW_M = 60;
+  const LOCAL_WINDOW_M = 150; // 建築限界(4.5m)確保のための緩勾配ランプは100m超になることもあるため広めに取る
   const LOCAL_THRESHOLD_M = 1.0;
 
   const rawFeatures = [];
@@ -1401,6 +1406,19 @@ function sparklineSVG(fullProfile, status, cutoffDist) {
 
     if (isPeak) rawFeatures.push({ dist: center.dist, elev: center.elev, type: "mound" });
     else if (isValley) rawFeatures.push({ dist: center.dist, elev: center.elev, type: "dip" });
+  }
+
+  // 補完策: 1区間(10m)で道路の最急勾配(18%)を物理的に超える変化があれば、
+  // 前後に平坦区間を伴わなくても(=上の局所検出だけでは拾えなくても)、
+  // ほぼ確実に人工構造物(法面・擁壁)なので単独でも検出する。
+  for (let i = 0; i < fullProfile.length - 1; i++) {
+    const a = fullProfile[i].elev, b = fullProfile[i + 1].elev;
+    if (a === null || b === null) continue;
+    const jump = b - a;
+    if (Math.abs(jump) < IMPOSSIBLE_GRADE_M) continue;
+    const midDist = (fullProfile[i].dist + fullProfile[i + 1].dist) / 2;
+    const midElev = (a + b) / 2;
+    rawFeatures.push({ dist: midDist, elev: midElev, type: jump > 0 ? "mound" : "dip" });
   }
 
   // 同じ山・谷を指す近接した点が複数拾われるため、近い範囲(60m以内)ではもっとも
