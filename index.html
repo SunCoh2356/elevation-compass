@@ -207,6 +207,44 @@
     z-index: 1;
     pointer-events: none;
   }
+  #ringLayer {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    pointer-events: none;
+  }
+  #ringLayer .ring {
+    position: absolute;
+    border: 2px dashed #D9302B;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.9);
+    box-sizing: border-box;
+  }
+  #ringLayer .ring-label {
+    position: absolute;
+    font-size: 11px;
+    font-weight: 700;
+    color: #D9302B;
+    background: rgba(255,255,255,0.85);
+    padding: 1px 4px;
+    border-radius: 4px;
+    transform: translate(-50%, -50%);
+  }
+  #hitLayer {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 3;
+  }
+  #hitLayer .dir-hit {
+    position: absolute;
+    background: rgba(0,0,0,0.001);
+    transform-origin: 0 50%;
+    cursor: pointer;
+  }
   .map-note {
     font-size: 11.5px;
     color: var(--ink-dim);
@@ -496,6 +534,8 @@
       <div class="map-frame">
         <div class="map-tiles" id="mapTiles"></div>
         <svg id="mapOverlay" viewBox="0 0 300 300" preserveAspectRatio="none"></svg>
+        <div id="ringLayer"></div>
+        <div id="hitLayer"></div>
         <div class="map-marker" id="mapMarker"></div>
       </div>
       <div id="shelterList" style="display:none;"></div>
@@ -765,28 +805,79 @@ function drawDistanceRings() {
   const frameSize = (frame && frame.clientWidth) || 320;
 
   const mpp = metersPerPixel(lat, zoom); // 1画面ピクセルが実際に何mか
-  const cx = 150, cy = 150; // svg座標系(viewBox 300x300)の中心
-  const svgPerPixel = 300 / frameSize; // 物理ピクセル→svg座標への換算
+  const centerPx = frameSize / 2;
 
-  let parts = [];
+  const ringLayer = document.getElementById("ringLayer");
+  if (!ringLayer) return;
+  ringLayer.innerHTML = "";
+
   // 選んでいる距離(SAMPLE_MAX_M)自体の円は矢印の位置と重複するため表示しない。
   // それより小さい距離の目印だけを補助線として表示する(400m選択時→50/100/200m、200m選択時→50/100m、など)。
+  // SVGではなく素のHTML(div)で描く: ブラウザ間の互換性が高く確実に表示される。
   RING_DISTANCES_M.filter(distM => distM < SAMPLE_MAX_M).forEach(distM => {
     const radiusPx = distM / mpp;
-    const radiusSvg = radiusPx * svgPerPixel;
-    parts.push(`<circle cx="${cx}" cy="${cy}" r="${radiusSvg.toFixed(1)}" fill="none" stroke="#EFEAE0" stroke-width="1" stroke-dasharray="3,4" opacity="0.35"/>`);
-    // ラベルは円の右上あたりに配置
-    const lx = cx + radiusSvg * Math.cos(-45 * Math.PI / 180);
-    const ly = cy + radiusSvg * Math.sin(-45 * Math.PI / 180);
-    parts.push(`<text x="${lx}" y="${ly}" text-anchor="middle" fill="#EFEAE0" font-size="9" opacity="0.6" stroke="#17242A" stroke-width="2" paint-order="stroke">${distM}m</text>`);
-  });
+    const diameterPx = radiusPx * 2;
 
-  const existing = document.getElementById("distanceRings");
-  if (existing) existing.remove();
-  const overlay = document.getElementById("mapOverlay");
-  if (overlay) {
-    overlay.insertAdjacentHTML("afterbegin", `<g id="distanceRings">${parts.join("")}</g>`);
-  }
+    const ring = document.createElement("div");
+    ring.className = "ring";
+    ring.style.width = diameterPx + "px";
+    ring.style.height = diameterPx + "px";
+    ring.style.left = (centerPx - radiusPx) + "px";
+    ring.style.top = (centerPx - radiusPx) + "px";
+    ringLayer.appendChild(ring);
+
+    const label = document.createElement("div");
+    label.className = "ring-label";
+    label.textContent = distM + "m";
+    // ラベルは円の右上あたりに配置
+    const lx = centerPx + radiusPx * Math.cos(-45 * Math.PI / 180);
+    const ly = centerPx + radiusPx * Math.sin(-45 * Math.PI / 180);
+    label.style.left = lx + "px";
+    label.style.top = ly + "px";
+    ringLayer.appendChild(label);
+  });
+}
+
+// タップ判定を、SVG図形ではなく実際のHTML要素(div)で作る。
+// SVG図形へのタップ判定はブラウザ間で挙動が不安定になることがあるため、
+// より確実なHTML要素のクリックイベントに統一する。
+function drawHitLayer(points) {
+  const hitLayer = document.getElementById("hitLayer");
+  if (!hitLayer) return;
+  hitLayer.innerHTML = "";
+
+  const frame = document.querySelector(".map-frame");
+  const frameSize = (frame && frame.clientWidth) || 320;
+  const pxPerSvgUnit = frameSize / 300;
+  const centerPx = frameSize / 2;
+
+  points.forEach(p => {
+    // 連続距離表示なら一番外側の区間(112)まで、標準表示なら選んでいる距離の実際の位置まで
+    const outerRadiusSvg = segmentedMode
+      ? SEGMENT_RADII[SEGMENT_RADII.length - 1]
+      : pointAtRealDistance(p.angle, SAMPLE_MAX_M).svgRadius;
+
+    const lengthPx = (outerRadiusSvg + 24) * pxPerSvgUnit; // ラベルの少し先まで届くように余裕を持たせる
+
+    const div = document.createElement("div");
+    div.className = "dir-hit";
+    div.dataset.dirKey = p.key;
+    div.style.left = centerPx + "px";
+    div.style.top = centerPx + "px";
+    div.style.width = lengthPx + "px";
+    div.style.height = "48px";
+    div.style.marginTop = "-24px";
+    // 北(0度)を上向きにするため、CSSの回転基準(0度=右向き)から-90度ずらす
+    div.style.transform = `rotate(${p.angle - 90}deg)`;
+    div.addEventListener("click", () => {
+      const row = document.getElementById(`row-${p.key}`);
+      if (!row) return;
+      try { row.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) { /* 対応していない環境は無視 */ }
+      row.classList.add("row-highlight");
+      setTimeout(() => row.classList.remove("row-highlight"), 1400);
+    });
+    hitLayer.appendChild(div);
+  });
 }
 
 // ---- 指定緊急避難場所(洪水)の表示 ----
@@ -1113,6 +1204,7 @@ function gradeColor(status, absDiff, distM) {
 // ---- 連続距離表示(区間ごとの平均勾配) ----
 // 0-50m/50-100m/100-200m/200-400mの4区間それぞれの平均勾配を求め、方向ごとに複数の小さな矢印で表示する。
 const SEGMENTS = [[0, 50], [50, 100], [100, 200], [200, 400]];
+const SEGMENT_RADII = [34, 60, 86, 112]; // 中心からの固定間隔(svg座標系)。連続距離表示の矢印とタップ判定の両方で使う
 let segmentedMode = true; // 連続距離表示をデフォルトにする(こちらの方が感覚的に見やすいため)
 
 function elevAt(profile, dist) {
@@ -1144,7 +1236,6 @@ function drawMapOverlay(points) {
       // このモードは「実際の距離の正確な位置」より「4区間を見比べやすくする」ことが目的のため、
       // 実距離比例ではなく均等な間隔で並べる(実距離比例だと近い区間ほど中心のマーカーに重なって見えなくなるため)。
       const fp = p.fullProfile || p.profile;
-      const SEGMENT_RADII = [34, 60, 86, 112]; // 中心からの固定間隔(svg座標系、間隔を広めに)
       const outerR = SEGMENT_RADII[SEGMENT_RADII.length - 1];
       const lx = cx + (outerR + 22) * Math.cos(rad);
       const ly = cy + (outerR + 22) * Math.sin(rad);
@@ -1177,10 +1268,6 @@ function drawMapOverlay(points) {
           svgParts.push(`<line x1="${mx-8}" y1="${my}" x2="${mx+8}" y2="${my}" stroke="${segColor}" stroke-width="5" stroke-linecap="round"/>`);
         }
       });
-
-      // タップ/クリックで下の一覧表(縦断)の該当行へ移動できるよう、見えない太い線を
-      // 中心から外側まで引いて全区間をカバーする(円を点在させると隙間ができてタップが効かない区間が生じるため)。
-      svgParts.push(`<line x1="${cx}" y1="${cy}" x2="${outerX}" y2="${outerY}" stroke="transparent" stroke-width="44" data-dir-key="${p.key}" style="pointer-events:all; cursor:pointer;"/>`);
       return;
     }
 
@@ -1251,12 +1338,11 @@ function drawMapOverlay(points) {
         svgParts.push(`<text x="${badgeX}" y="${badgeY+4}" text-anchor="middle" fill="${cs.color}" font-size="11" font-weight="700">${cs.symbol}</text>`);
       }
     }
-    // タップ/クリックで下の一覧表(縦断)の該当行へ移動できるよう、見えない大きめの当たり判定を重ねる
-    svgParts.push(`<circle cx="${px}" cy="${py}" r="20" fill="transparent" data-dir-key="${p.key}" style="pointer-events:all; cursor:pointer;"/>`);
   });
 
   document.getElementById("mapOverlay").innerHTML = svgParts.join("");
   drawDistanceRings();
+  drawHitLayer(points);
   drawShelterMarkers();
   if (currentHeading !== null) drawFacingIndicator();
 }
