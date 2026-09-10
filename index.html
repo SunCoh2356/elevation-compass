@@ -213,6 +213,12 @@
     margin-top: 8px;
     line-height: 1.6;
   }
+  .shelter-row {
+    font-size: 12.5px;
+    color: var(--ink);
+    padding: 4px 0;
+    border-bottom: 1px solid var(--line);
+  }
   .tap-hint {
     font-size: 12px;
     color: var(--ink);
@@ -480,17 +486,14 @@
         <button id="stylePale">淡色地図</button>
       </div>
       <div class="style-toggle">
-        <button id="faultToggle">活断層図を重ねる(都市部のみ)</button>
-      </div>
-      <div class="style-toggle">
         <button id="shelterToggle">🏫 指定緊急避難場所(洪水)を表示</button>
       </div>
       <div class="map-frame">
         <div class="map-tiles" id="mapTiles"></div>
-        <div class="map-tiles" id="faultTiles" style="display:none;"></div>
         <svg id="mapOverlay" viewBox="0 0 300 300" preserveAspectRatio="none"></svg>
         <div class="map-marker" id="mapMarker"></div>
       </div>
+      <div id="shelterList" style="display:none;"></div>
       <p class="tap-hint">👆 <b>気になる方向</b>をタップ</p>
       <div class="legend">
         <span><span class="dot" style="background:#E0479E"></span>緩やかな登り</span>
@@ -637,7 +640,6 @@ function destPoint(lat, lon, bearingDeg, distM) {
 // 国土地理院「標準地図」タイル(等高線を含む)をXYZ形式でそのまま表示する。
 let mapState = { lat: null, lon: null, zoom: 16 };
 let mapStyle = "std"; // "std"=標準地図 / "pale"=淡色地図
-let faultOverlayOn = false; // 都市圏活断層図(afm)を重ねるかどうか
 let shelterOverlayOn = false; // 指定緊急避難場所(洪水)を重ねるかどうか
 let shelterFeatures = null; // 取得済みの避難場所データ(キャッシュ)
 const TILE_SIZE = 256;
@@ -681,9 +683,6 @@ function drawContourMap() {
   const n = Math.pow(2, zoom);
 
   drawTileLayer("mapTiles", mapStyle, firstTileX, firstTileY, tilesNeeded, n, zoom, originX, originY, frameSize);
-  if (faultOverlayOn) {
-    drawTileLayer("faultTiles", "afm", firstTileX, firstTileY, tilesNeeded, n, zoom, originX, originY, frameSize);
-  }
 
   // 現在地マーカーは常に画面中央
   const marker = document.getElementById("mapMarker");
@@ -822,27 +821,68 @@ async function fetchShelterFeatures(lat, lon) {
   }
 }
 
+// 2地点間の距離(m)をおおよそ計算する(短中距離用の簡易球面計算)
+function haversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// 8方位の名前(方角の表示用)
+function bearingToCompass(lat1, lon1, lat2, lon2) {
+  const toRad = d => d * Math.PI / 180;
+  const dLon = toRad(lon2 - lon1);
+  const y = Math.sin(dLon) * Math.cos(toRad(lat2));
+  const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) - Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
+  const brng = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  const names = ["北","北東","東","南東","南","南西","西","北西"];
+  return names[Math.round(brng / 45) % 8];
+}
+
 function drawShelterMarkers() {
   const existing = document.getElementById("shelterMarkers");
   if (existing) existing.remove();
-  if (!shelterOverlayOn || !shelterFeatures || shelterFeatures.length === 0) return;
+
+  const listEl = document.getElementById("shelterList");
+  if (!shelterOverlayOn || !shelterFeatures || shelterFeatures.length === 0) {
+    if (listEl) listEl.style.display = "none";
+    return;
+  }
 
   const overlay = document.getElementById("mapOverlay");
-  if (!overlay) return;
 
-  let parts = [];
-  shelterFeatures.forEach(f => {
+  // 現在地からの距離を計算し、近い順に並べる。地図(最大400m)より遠いものは
+  // 画面内には描けないため、代わりにテキストの一覧で「どちら方向に何mか」を示す。
+  const withDist = shelterFeatures.map(f => {
     const [lon, lat] = f.geometry.coordinates;
+    const dist = haversineDistance(mapState.lat, mapState.lon, lat, lon);
+    const bearing = bearingToCompass(mapState.lat, mapState.lon, lat, lon);
+    return { f, lat, lon, dist, bearing, name: guessShelterName(f.properties) };
+  }).sort((a, b) => a.dist - b.dist);
+
+  // 地図上に描けるもの(表示範囲内)だけマーカーを描画
+  let parts = [];
+  withDist.forEach(({ lat, lon, name }) => {
     const pos = latLonToMapSvgPos(lat, lon);
-    if (pos.x < -20 || pos.x > 320 || pos.y < -20 || pos.y > 320) return; // 画面外は描かない
-    const name = guessShelterName(f.properties);
+    if (pos.x < -20 || pos.x > 320 || pos.y < -20 || pos.y > 320) return;
     parts.push(`<g>
       <circle cx="${pos.x.toFixed(1)}" cy="${pos.y.toFixed(1)}" r="7" fill="#2E7D32" stroke="#EFEAE0" stroke-width="1.5"/>
       <text x="${pos.x.toFixed(1)}" y="${(pos.y+3.5).toFixed(1)}" text-anchor="middle" font-size="9">🏫</text>
       <title>${name}</title>
     </g>`);
   });
-  overlay.insertAdjacentHTML("beforeend", `<g id="shelterMarkers">${parts.join("")}</g>`);
+  if (overlay) overlay.insertAdjacentHTML("beforeend", `<g id="shelterMarkers">${parts.join("")}</g>`);
+
+  // 近い順に上位5件をテキストの一覧として表示(地図の表示範囲外でも距離・方角がわかる)
+  if (listEl) {
+    listEl.style.display = "block";
+    const top5 = withDist.slice(0, 5);
+    listEl.innerHTML = `<p class="map-note" style="margin-top:10px; margin-bottom:4px;">現在地から近い指定緊急避難場所(洪水)</p>` +
+      top5.map(s => `<div class="shelter-row">🏫 ${s.name}　${s.bearing}方向・約${Math.round(s.dist)}m</div>`).join("");
+  }
 }
 
 document.getElementById("zoomIn").addEventListener("click", () => {
@@ -866,15 +906,6 @@ function setMapStyle(style) {
 }
 styleStdBtn.addEventListener("click", () => setMapStyle("std"));
 stylePaleBtn.addEventListener("click", () => setMapStyle("pale"));
-
-// 活断層図オーバーレイの切り替え
-const faultToggleBtn = document.getElementById("faultToggle");
-faultToggleBtn.addEventListener("click", () => {
-  faultOverlayOn = !faultOverlayOn;
-  faultToggleBtn.classList.toggle("active", faultOverlayOn);
-  document.getElementById("faultTiles").style.display = faultOverlayOn ? "block" : "none";
-  if (mapState.lat !== null) drawContourMap();
-});
 
 // 指定緊急避難場所(洪水)の表示切り替え
 const shelterToggleBtn = document.getElementById("shelterToggle");
