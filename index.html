@@ -487,8 +487,8 @@
         </span>
       </p>
       <div class="style-toggle">
-        <button id="styleStd" class="active">標準地図</button>
-        <button id="stylePale">淡色地図</button>
+        <button id="styleStd">標準地図</button>
+        <button id="stylePale" class="active">淡色地図</button>
       </div>
       <div class="style-toggle">
         <button id="shelterToggle">🏫 指定緊急避難場所(洪水)を表示</button>
@@ -511,15 +511,19 @@
       <div class="legend" style="margin-top:6px;">
         <span><span class="dot" style="background:var(--flat)"></span>ほぼ平ら</span>
       </div>
-      <div class="legend" style="margin-top:10px;">
-        <span><span class="dot" style="background:#B255D9"></span>▼ 経路の途中に谷(注意)</span>
-        <span><span class="dot" style="background:#5FD98F"></span>▲ 経路の途中に山</span>
+      <p class="map-note" id="segmentedLegendNote" style="margin-top:8px;">内側から外側へ、0-50m・50-100m・100-200m・200-400mの4区間の平均勾配です。</p>
+      <div id="standardModeLegend" style="display:none;">
+        <div class="legend" style="margin-top:10px;">
+          <span><span class="dot" style="background:#B255D9"></span>▼ 経路の途中に谷(注意)</span>
+          <span><span class="dot" style="background:#5FD98F"></span>▲ 経路の途中に山</span>
+        </div>
+        <div class="legend" style="margin-top:6px;">
+          <span><span class="dot" style="background:#C79A5B"></span>⚠ 急に高くなる(盛り土・堤防等の可能性)</span>
+          <span><span class="dot" style="background:#FF5252"></span>🌊 急に低くなる(アンダーパス・冠水注意)</span>
+        </div>
+        <p class="map-note">矢印(↑↓／横棒)は「選んだ距離全体として登りか下りか平らか」を表します(コンパス上の方角とは無関係)。</p>
       </div>
-      <div class="legend" style="margin-top:6px;">
-        <span><span class="dot" style="background:#C79A5B"></span>⚠ 急に高くなる(盛り土・堤防等の可能性)</span>
-        <span><span class="dot" style="background:#FF5252"></span>🌊 急に低くなる(アンダーパス・冠水注意)</span>
-      </div>
-      <p class="map-note">背景は国土地理院の地図タイル(標準地図/淡色地図から選択可、いずれも等高線入り)。地図のズームは選んだ距離に応じて自動調整されます。矢印(↑↓／横棒)は常に「全体として登りか下りか平らか」だけを表します(コンパス上の方角とは無関係)。色が赤や濃い青に近いほど急勾配、太く長い矢印ほど高低差が大きいことを表します。点線の同心円は、選んでいる距離より内側の目印(例:400m選択時は50・100・200m)を示します。オレンジの点が現在地です。</p>
+      <p class="map-note">背景は国土地理院の地図タイル(標準地図/淡色地図から選択可、いずれも等高線入り)。地図のズームは選んだ距離に応じて自動調整されます。色が赤や濃い青に近いほど急勾配、太く長い矢印ほど高低差が大きいことを表します。点線の同心円は、選んでいる距離より内側の目印(例:400m選択時は50・100・200m)を示します。オレンジの点が現在地です。</p>
 
       <div class="heading-row">
         <button id="segmentedToggle" class="active">連続距離表示: オン(タップで標準表示に切り替え)</button>
@@ -644,7 +648,7 @@ function destPoint(lat, lon, bearingDeg, distM) {
 // ---- 地形図(等高線)タイル表示 ----
 // 国土地理院「標準地図」タイル(等高線を含む)をXYZ形式でそのまま表示する。
 let mapState = { lat: null, lon: null, zoom: 16 };
-let mapStyle = "std"; // "std"=標準地図 / "pale"=淡色地図
+let mapStyle = "pale"; // "std"=標準地図 / "pale"=淡色地図(矢印が見やすいためこちらをデフォルトに)
 let shelterOverlayOn = false; // 指定緊急避難場所(洪水)を重ねるかどうか
 let shelterFeatures = null; // 取得済みの避難場所データ(キャッシュ)
 const TILE_SIZE = 256;
@@ -675,7 +679,7 @@ function drawContourMap() {
   if (lat === null) return;
 
   const frame = document.querySelector(".map-frame");
-  const frameSize = frame.clientWidth;
+  const frameSize = (frame && frame.clientWidth) || 320;
   const world = lonLatToWorldPixel(lon, lat, zoom);
 
   // 中心を画面中央に据えるためのオフセット
@@ -758,8 +762,7 @@ function drawDistanceRings() {
   const { lat, zoom } = mapState;
   if (lat === null) return;
   const frame = document.querySelector(".map-frame");
-  const frameSize = frame.clientWidth;
-  if (!frameSize) return;
+  const frameSize = (frame && frame.clientWidth) || 320;
 
   const mpp = metersPerPixel(lat, zoom); // 1画面ピクセルが実際に何mか
   const cx = 150, cy = 150; // svg座標系(viewBox 300x300)の中心
@@ -1174,6 +1177,10 @@ function drawMapOverlay(points) {
           svgParts.push(`<line x1="${mx-8}" y1="${my}" x2="${mx+8}" y2="${my}" stroke="${segColor}" stroke-width="5" stroke-linecap="round"/>`);
         }
       });
+
+      // タップ/クリックで下の一覧表(縦断)の該当行へ移動できるよう、見えない太い線を
+      // 中心から外側まで引いて全区間をカバーする(円を点在させると隙間ができてタップが効かない区間が生じるため)。
+      svgParts.push(`<line x1="${cx}" y1="${cy}" x2="${outerX}" y2="${outerY}" stroke="transparent" stroke-width="44" data-dir-key="${p.key}" style="pointer-events:all; cursor:pointer;"/>`);
       return;
     }
 
@@ -1689,6 +1696,13 @@ const distButtons = [
 // 連続距離表示(区間ごとの平均勾配)のオン/オフ切り替え
 const segmentedToggle = document.getElementById("segmentedToggle");
 const segmentedStatus = document.getElementById("segmentedStatus");
+// 表示モードに応じて、地図下の凡例(谷/山/盛り土/アンダーパスのバッジ説明)を切り替える。
+// 連続距離表示モードではこれらのバッジは描画されないため、混乱を避けて隠す。
+function updateLegendForMode() {
+  document.getElementById("standardModeLegend").style.display = segmentedMode ? "none" : "block";
+  document.getElementById("segmentedLegendNote").style.display = segmentedMode ? "block" : "none";
+}
+
 segmentedToggle.addEventListener("click", () => {
   segmentedMode = !segmentedMode;
   segmentedToggle.classList.toggle("active", segmentedMode);
@@ -1696,11 +1710,13 @@ segmentedToggle.addEventListener("click", () => {
   segmentedStatus.textContent = segmentedMode
     ? "オン(標準): 0-50m・50-100m・100-200m・200-400mの4区間それぞれの平均勾配を表示しています。タップで「選んだ距離1本の矢印」表示に切り替えられます。"
     : "標準表示: 選んだ距離1本の矢印を表示しています。タップで連続距離表示に戻せます。";
+  updateLegendForMode();
   if (lastRawProfiles) {
     const points = buildPointsFromCache();
     drawMapOverlay(points);
   }
 });
+updateLegendForMode(); // 初期表示(連続距離表示がデフォルト)に合わせて凡例を調整
 
 // 地図上の方位マーカーをタップすると、下の一覧表(縦断)の該当行へスクロールして一時的に強調表示する
 document.getElementById("mapOverlay").addEventListener("click", (e) => {
