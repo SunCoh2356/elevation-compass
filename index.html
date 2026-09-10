@@ -482,6 +482,9 @@
       <div class="style-toggle">
         <button id="faultToggle">活断層図を重ねる(都市部のみ)</button>
       </div>
+      <div class="style-toggle">
+        <button id="shelterToggle">🏫 指定緊急避難場所(洪水)を表示</button>
+      </div>
       <div class="map-frame">
         <div class="map-tiles" id="mapTiles"></div>
         <div class="map-tiles" id="faultTiles" style="display:none;"></div>
@@ -635,6 +638,8 @@ function destPoint(lat, lon, bearingDeg, distM) {
 let mapState = { lat: null, lon: null, zoom: 16 };
 let mapStyle = "std"; // "std"=標準地図 / "pale"=淡色地図
 let faultOverlayOn = false; // 都市圏活断層図(afm)を重ねるかどうか
+let shelterOverlayOn = false; // 指定緊急避難場所(洪水)を重ねるかどうか
+let shelterFeatures = null; // 取得済みの避難場所データ(キャッシュ)
 const TILE_SIZE = 256;
 
 function lonLatToWorldPixel(lon, lat, zoom) {
@@ -643,6 +648,19 @@ function lonLatToWorldPixel(lon, lat, zoom) {
   const latRad = lat * Math.PI / 180;
   const y = (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n * TILE_SIZE;
   return { x, y };
+}
+
+// 任意の緯度経度を、現在の地図表示におけるsvg座標(0-300)に変換する(避難場所マーカーなどに使用)
+function latLonToMapSvgPos(lat, lon) {
+  const { lat: centerLat, lon: centerLon, zoom } = mapState;
+  const frame = document.querySelector(".map-frame");
+  const frameSize = (frame && frame.clientWidth) || 320;
+  const centerWorld = lonLatToWorldPixel(centerLon, centerLat, zoom);
+  const pointWorld = lonLatToWorldPixel(lon, lat, zoom);
+  const dxPx = pointWorld.x - centerWorld.x;
+  const dyPx = pointWorld.y - centerWorld.y;
+  const svgPerPixel = 300 / frameSize;
+  return { x: 150 + dxPx * svgPerPixel, y: 150 + dyPx * svgPerPixel };
 }
 
 function drawContourMap() {
@@ -764,6 +782,69 @@ function drawDistanceRings() {
   }
 }
 
+// ---- 指定緊急避難場所(洪水)の表示 ----
+// 国土地理院のGeoJSONタイル(ズーム10固定)から取得する。都市部以外や未整備の市町村は
+// データが存在しない場合があり、その際は何も表示されない(エラーにはしない)。
+function latLonToTileXY(lat, lon, z) {
+  const n = Math.pow(2, z);
+  const x = Math.floor((lon + 180) / 360 * n);
+  const latRad = lat * Math.PI / 180;
+  const y = Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n);
+  return { x, y };
+}
+
+// 施設名らしき属性を、想定される複数のキー名から探す(実際のスキーマを確認できていないための保険)
+function guessShelterName(props) {
+  if (!props) return "指定緊急避難場所";
+  const candidates = ["名称", "施設名称", "施設・場所名", "name", "P20_002", "P20_003"];
+  for (const key of candidates) {
+    if (props[key]) return props[key];
+  }
+  return "指定緊急避難場所";
+}
+
+async function fetchShelterFeatures(lat, lon) {
+  const SHELTER_ZOOM = 10; // このデータセットはズーム10でのみ提供されている
+  const { x, y } = latLonToTileXY(lat, lon, SHELTER_ZOOM);
+  const url = `https://cyberjapandata.gsi.go.jp/xyz/skhb01/${SHELTER_ZOOM}/${x}/${y}.geojson`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!data || !Array.isArray(data.features)) return [];
+    return data.features.filter(f => f.geometry && f.geometry.type === "Point");
+  } catch (e) {
+    return []; // 読み込めない場合は「該当データなし」として静かに扱う
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function drawShelterMarkers() {
+  const existing = document.getElementById("shelterMarkers");
+  if (existing) existing.remove();
+  if (!shelterOverlayOn || !shelterFeatures || shelterFeatures.length === 0) return;
+
+  const overlay = document.getElementById("mapOverlay");
+  if (!overlay) return;
+
+  let parts = [];
+  shelterFeatures.forEach(f => {
+    const [lon, lat] = f.geometry.coordinates;
+    const pos = latLonToMapSvgPos(lat, lon);
+    if (pos.x < -20 || pos.x > 320 || pos.y < -20 || pos.y > 320) return; // 画面外は描かない
+    const name = guessShelterName(f.properties);
+    parts.push(`<g>
+      <circle cx="${pos.x.toFixed(1)}" cy="${pos.y.toFixed(1)}" r="7" fill="#2E7D32" stroke="#EFEAE0" stroke-width="1.5"/>
+      <text x="${pos.x.toFixed(1)}" y="${(pos.y+3.5).toFixed(1)}" text-anchor="middle" font-size="9">🏫</text>
+      <title>${name}</title>
+    </g>`);
+  });
+  overlay.insertAdjacentHTML("beforeend", `<g id="shelterMarkers">${parts.join("")}</g>`);
+}
+
 document.getElementById("zoomIn").addEventListener("click", () => {
   mapState.zoom = Math.min(mapState.zoom + 1, 18);
   drawContourMap();
@@ -793,6 +874,24 @@ faultToggleBtn.addEventListener("click", () => {
   faultToggleBtn.classList.toggle("active", faultOverlayOn);
   document.getElementById("faultTiles").style.display = faultOverlayOn ? "block" : "none";
   if (mapState.lat !== null) drawContourMap();
+});
+
+// 指定緊急避難場所(洪水)の表示切り替え
+const shelterToggleBtn = document.getElementById("shelterToggle");
+shelterToggleBtn.addEventListener("click", async () => {
+  if (mapState.lat === null) return;
+  shelterOverlayOn = !shelterOverlayOn;
+  shelterToggleBtn.classList.toggle("active", shelterOverlayOn);
+
+  if (shelterOverlayOn && shelterFeatures === null) {
+    const originalText = shelterToggleBtn.textContent;
+    shelterToggleBtn.textContent = "🏫 取得中…";
+    shelterFeatures = await fetchShelterFeatures(mapState.lat, mapState.lon);
+    shelterToggleBtn.textContent = shelterFeatures.length > 0
+      ? `🏫 指定緊急避難場所(洪水)を表示(${shelterFeatures.length}件)`
+      : "🏫 指定緊急避難場所(洪水)を表示(この地域はデータなし)";
+  }
+  drawShelterMarkers();
 });
 
 const FETCH_TIMEOUT_MS = 8000; // 1件あたりの通信タイムアウト。これがないと応答のない通信で処理全体が止まる
@@ -1115,6 +1214,7 @@ function drawMapOverlay(points) {
 
   document.getElementById("mapOverlay").innerHTML = svgParts.join("");
   drawDistanceRings();
+  drawShelterMarkers();
   if (currentHeading !== null) drawFacingIndicator();
 }
 
@@ -1376,6 +1476,12 @@ async function run() {
     // 地図のズームは選んだ距離に応じて調整する(距離が短いほど拡大)。
     // 400mの余白の取り方(marginRatio)を基準に、他の距離もバランスよく収まるようにしている。
     mapState = { lat, lon, zoom: bestZoomForDistance(lat, SAMPLE_MAX_M) };
+    shelterFeatures = null; // 現在地が変わったので避難場所データのキャッシュを破棄
+    if (shelterOverlayOn) {
+      shelterToggleBtn.textContent = "🏫 指定緊急避難場所(洪水)を表示";
+      shelterOverlayOn = false;
+      shelterToggleBtn.classList.remove("active");
+    }
 
     // 公式サイトへ現在地付きで飛べるようリンク先を更新
     document.getElementById("hazardMapLink").href =
