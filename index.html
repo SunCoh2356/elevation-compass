@@ -233,7 +233,7 @@
   .heading-row {
     margin-top: 12px;
   }
-  #headingBtn {
+  #headingBtn, #segmentedToggle {
     width: 100%;
     padding: 12px 0;
     font-size: 14px;
@@ -242,6 +242,11 @@
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: 10px;
+  }
+  #segmentedToggle.active {
+    color: #17242A;
+    background: var(--ink);
+    border-color: var(--ink);
   }
   .heading-status {
     font-size: 12px;
@@ -517,8 +522,8 @@
       <p class="map-note">背景は国土地理院の地図タイル(標準地図/淡色地図から選択可、いずれも等高線入り)。地図のズームは選んだ距離に応じて自動調整されます。矢印(↑↓／横棒)は常に「全体として登りか下りか平らか」だけを表します(コンパス上の方角とは無関係)。色が赤や濃い青に近いほど急勾配、太く長い矢印ほど高低差が大きいことを表します。点線の同心円は、選んでいる距離より内側の目印(例:400m選択時は50・100・200m)を示します。オレンジの点が現在地です。</p>
 
       <div class="heading-row">
-        <button id="segmentedToggle">連続距離表示(区間ごとの平均勾配)</button>
-        <p class="heading-status" id="segmentedStatus">オフ: 選んだ距離1本の矢印を表示 / オンにすると、0-50m・50-100m・100-200m・200-400mの4区間それぞれの平均勾配を小さな矢印で表示します。</p>
+        <button id="segmentedToggle" class="active">連続距離表示: オン(タップで標準表示に切り替え)</button>
+        <p class="heading-status" id="segmentedStatus">オン(標準): 0-50m・50-100m・100-200m・200-400mの4区間それぞれの平均勾配を表示しています。タップで「選んだ距離1本の矢印」表示に切り替えられます。</p>
       </div>
 
       <div class="heading-row">
@@ -1105,7 +1110,7 @@ function gradeColor(status, absDiff, distM) {
 // ---- 連続距離表示(区間ごとの平均勾配) ----
 // 0-50m/50-100m/100-200m/200-400mの4区間それぞれの平均勾配を求め、方向ごとに複数の小さな矢印で表示する。
 const SEGMENTS = [[0, 50], [50, 100], [100, 200], [200, 400]];
-let segmentedMode = false;
+let segmentedMode = true; // 連続距離表示をデフォルトにする(こちらの方が感覚的に見やすいため)
 
 function elevAt(profile, dist) {
   const pt = profile.find(p => p.dist === dist);
@@ -1132,11 +1137,11 @@ function drawMapOverlay(points) {
     const rad = (p.angle - 90) * Math.PI / 180;
 
     if (segmentedMode) {
-      // ---- 連続距離表示: 0-50/50-100/100-200/200-400mの各区間を個別の小さな矢印で表示 ----
+      // ---- 連続距離表示: 0-50/50-100/100-200/200-400mの各区間を個別の矢印で表示 ----
       // このモードは「実際の距離の正確な位置」より「4区間を見比べやすくする」ことが目的のため、
       // 実距離比例ではなく均等な間隔で並べる(実距離比例だと近い区間ほど中心のマーカーに重なって見えなくなるため)。
       const fp = p.fullProfile || p.profile;
-      const SEGMENT_RADII = [32, 54, 76, 98]; // 中心からの固定間隔(svg座標系)
+      const SEGMENT_RADII = [34, 60, 86, 112]; // 中心からの固定間隔(svg座標系、間隔を広めに)
       const outerR = SEGMENT_RADII[SEGMENT_RADII.length - 1];
       const lx = cx + (outerR + 22) * Math.cos(rad);
       const ly = cy + (outerR + 22) * Math.sin(rad);
@@ -1150,7 +1155,7 @@ function drawMapOverlay(points) {
         const mx = cx + segR * Math.cos(rad), my = cy + segR * Math.sin(rad);
 
         if (seg.status === "error") {
-          svgParts.push(`<circle cx="${mx}" cy="${my}" r="6" fill="#17242A" stroke="#586A6E" stroke-width="1.5"/>`);
+          svgParts.push(`<circle cx="${mx}" cy="${my}" r="7" fill="#17242A" stroke="#586A6E" stroke-width="2"/>`);
           return;
         }
         const segColor = (seg.status === "up" || seg.status === "down")
@@ -1158,15 +1163,15 @@ function drawMapOverlay(points) {
           : STATUS_STYLE.flat.color;
 
         if (seg.status === "up" || seg.status === "down") {
-          const len = Math.max(7, Math.min(15, gradeArrowLen(Math.abs(seg.diff), seg.segLen) * 0.5));
+          const len = Math.max(12, Math.min(24, gradeArrowLen(Math.abs(seg.diff), seg.segLen) * 0.8));
           const half = len / 2;
           const tailY = seg.status === "up" ? my + half : my - half;
           const tipY  = seg.status === "up" ? my - half : my + half;
-          svgParts.push(`<line x1="${mx}" y1="${tailY}" x2="${mx}" y2="${tipY}" stroke="${segColor}" stroke-width="2.5" stroke-linecap="round"/>`);
+          svgParts.push(`<line x1="${mx}" y1="${tailY}" x2="${mx}" y2="${tipY}" stroke="${segColor}" stroke-width="5" stroke-linecap="round"/>`);
           const tipDir = seg.status === "up" ? -1 : 1;
-          svgParts.push(`<polygon points="${mx},${tipY} ${mx-3},${tipY - tipDir*4} ${mx+3},${tipY - tipDir*4}" fill="${segColor}"/>`);
+          svgParts.push(`<polygon points="${mx},${tipY} ${mx-6},${tipY - tipDir*8} ${mx+6},${tipY - tipDir*8}" fill="${segColor}"/>`);
         } else {
-          svgParts.push(`<line x1="${mx-5}" y1="${my}" x2="${mx+5}" y2="${my}" stroke="${segColor}" stroke-width="2.5" stroke-linecap="round"/>`);
+          svgParts.push(`<line x1="${mx-8}" y1="${my}" x2="${mx+8}" y2="${my}" stroke="${segColor}" stroke-width="5" stroke-linecap="round"/>`);
         }
       });
       return;
@@ -1686,10 +1691,11 @@ const segmentedToggle = document.getElementById("segmentedToggle");
 const segmentedStatus = document.getElementById("segmentedStatus");
 segmentedToggle.addEventListener("click", () => {
   segmentedMode = !segmentedMode;
-  segmentedToggle.textContent = segmentedMode ? "連続距離表示: オン(タップでオフに戻す)" : "連続距離表示(区間ごとの平均勾配)";
+  segmentedToggle.classList.toggle("active", segmentedMode);
+  segmentedToggle.textContent = segmentedMode ? "連続距離表示: オン(タップで標準表示に切り替え)" : "標準表示: オン(タップで連続距離表示に切り替え)";
   segmentedStatus.textContent = segmentedMode
-    ? "オン: 0-50m・50-100m・100-200m・200-400mの4区間それぞれの平均勾配を、中心から等間隔で並べた小さな矢印で表示しています(実際の距離比例の位置ではありません)。"
-    : "オフ: 選んだ距離1本の矢印を表示 / オンにすると、0-50m・50-100m・100-200m・200-400mの4区間それぞれの平均勾配を表示します。";
+    ? "オン(標準): 0-50m・50-100m・100-200m・200-400mの4区間それぞれの平均勾配を表示しています。タップで「選んだ距離1本の矢印」表示に切り替えられます。"
+    : "標準表示: 選んだ距離1本の矢印を表示しています。タップで連続距離表示に戻せます。";
   if (lastRawProfiles) {
     const points = buildPointsFromCache();
     drawMapOverlay(points);
