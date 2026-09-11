@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>周辺高低コンパス</title>
+<title>坂道コンパス</title>
 <style>
   :root {
     --bg: #17242A;
@@ -465,13 +465,14 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>周辺高低コンパス</h1>
+  <h1>坂道コンパス</h1>
   <p class="sub">現在地を中心に、8方向の標高を10m間隔で調べ、ミニグラフで表示<br>
 　データ：国土地理院 標高API・標準地図タイル<br>
 　上り/下り判定：0.3m以上の高低差</p>
 
   <div class="warn">
-    平常時に地形の傾向を把握するための参考ツール
+    平常時に地形の傾向を把握するための参考ツール<br>
+    ※電波が届かないところでは利用できません
   </div>
 
   <div class="help-block" style="margin-top:0; border-top:none; padding-top:0;">
@@ -613,7 +614,8 @@
       <p class="official-sub">このページの標高推定では、浸水想定・避難場所・避難ルートはわかりません。現在地を使って、公式の情報へ直接移動できます。</p>
       <a id="hazardMapLink" class="official-btn" href="https://disaportal.gsi.go.jp/" target="_blank" rel="noopener">重ねるハザードマップを開く<span class="arrow-out">↗</span></a>
       <a id="shelterLink" class="official-btn" href="https://www.google.com/maps/search/避難場所" target="_blank" rel="noopener">近くの指定避難場所を探す(地図)<span class="arrow-out">↗</span></a>
-      <p class="help-note" style="margin-top:10px;">現在地を自動で反映しようとしていますが、サイト側の仕様で反映されない場合があります。その際は開いた先で位置情報の利用を許可するか、住所を手入力してください。</p>
+      <a id="kikikuruLink" class="official-btn" href="https://www.jma.go.jp/bosai/risk/" target="_blank" rel="noopener">🌧️ キキクル(今の危険度分布)を開く<span class="arrow-out">↗</span></a>
+      <p class="help-note" style="margin-top:10px;">キキクルは現在地付きで開きます(初期表示は「土砂」)。サイト内の切り替えで「浸水」「洪水」も確認できます。土砂災害・浸水害・洪水害のリアルタイムの危険度が確認できます。</p>
     </div>
   </div>
 
@@ -1638,6 +1640,8 @@ async function run() {
       `https://disaportal.gsi.go.jp/maps/index.html?ll=${lat},${lon}&zoom=15&base=pale`;
     document.getElementById("shelterLink").href =
       `https://www.google.com/maps/search/避難場所/@${lat},${lon},15z`;
+    document.getElementById("kikikuruLink").href =
+      `https://www.jma.go.jp/bosai/risk/#zoom:13/lat:${lat}/lon:${lon}/colordepth:normal/elements:land`;
 
     const rawProfiles = [];
     for (let i = 0; i < DIRS.length; i++) {
