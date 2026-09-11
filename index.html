@@ -615,7 +615,8 @@
       <a id="hazardMapLink" class="official-btn" href="https://disaportal.gsi.go.jp/" target="_blank" rel="noopener">重ねるハザードマップを開く<span class="arrow-out">↗</span></a>
       <a id="shelterLink" class="official-btn" href="https://www.google.com/maps/search/避難場所" target="_blank" rel="noopener">近くの指定避難場所を探す(地図)<span class="arrow-out">↗</span></a>
       <a id="kikikuruLink" class="official-btn" href="https://www.jma.go.jp/bosai/risk/" target="_blank" rel="noopener">🌧️ キキクル(今の危険度分布)を開く<span class="arrow-out">↗</span></a>
-      <p class="help-note" style="margin-top:10px;">キキクルは現在地付きで開きます(初期表示は「土砂」)。サイト内の切り替えで「浸水」「洪水」も確認できます。土砂災害・浸水害・洪水害のリアルタイムの危険度が確認できます。</p>
+      <a id="nowcastLink" class="official-btn" href="https://www.jma.go.jp/bosai/nowc/" target="_blank" rel="noopener">☁️ 雨雲の動き(今の雨・今後の予測)を開く<span class="arrow-out">↗</span></a>
+      <p class="help-note" style="margin-top:10px;">どちらも現在地付きで開きます。キキクルは初期表示「土砂」、雨雲の動きは実況と1時間先までの予測が見られます。</p>
     </div>
   </div>
 
@@ -1642,6 +1643,8 @@ async function run() {
       `https://www.google.com/maps/search/避難場所/@${lat},${lon},15z`;
     document.getElementById("kikikuruLink").href =
       `https://www.jma.go.jp/bosai/risk/#zoom:13/lat:${lat}/lon:${lon}/colordepth:normal/elements:land`;
+    document.getElementById("nowcastLink").href =
+      `https://www.jma.go.jp/bosai/nowc/#lat:${lat}/lon:${lon}/zoom:10/colordepth:normal/elements:hrpns`;
 
     const rawProfiles = [];
     for (let i = 0; i < DIRS.length; i++) {
