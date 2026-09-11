@@ -1089,17 +1089,29 @@ function classifyProfile(profile) {
   const hasHill = (maxV - start > FLAT_THRESHOLD) && (maxV - end > FLAT_THRESHOLD);
 
   // アンダーパス特有のパターン検出:
-  // 道路が交差する道路・鉄道の下をくぐるため、建築限界(概ね4.5m)を確保する分だけ
-  // 大きく掘り下げ、その後ほぼ元の高さまで戻る、という特徴的なU字形状を持つ。
-  // 「谷あり」より厳しい深さの条件と、「前後がほぼ同じ高さに戻る」条件を組み合わせて判定する。
-  const UNDERPASS_DEPTH_M = 3.0; // 建築限界(4.5m)相当を踏まえた経験的しきい値
+  // 道路が交差する道路・鉄道の下をくぐるため、交差する構造物の桁高＋建築限界(概ね4.5m)を
+  // 確保する必要があり、最も深い箇所では実際には6m以上の高低差が生じる。
+  // 3m程度では単なる小さな窪みと見分けがつかないため、6mを基準にする。
+  const UNDERPASS_DEPTH_M = 6.0; // 桁高+建築限界(4.5m)を踏まえた実態に基づくしきい値
   const UNDERPASS_RETURN_TOLERANCE_M = 1.0; // 前後の高さがこの範囲内なら「ほぼ同じ高さに戻った」とみなす
   const dipFromStart = start - minV;
   const dipFromEnd = end - minV;
-  const isPossibleUnderpass =
+  const isUShapeUnderpass =
     dipFromStart >= UNDERPASS_DEPTH_M &&
     dipFromEnd >= UNDERPASS_DEPTH_M &&
     Math.abs(netDiff) < UNDERPASS_RETURN_TOLERANCE_M;
+
+  // U字に戻りきらなくても(調査範囲の途中で切れている場合も)、アンダーパスの側壁のような
+  // ほぼ垂直の壁面(1区間10mでUNDERPASS_DEPTH_M相当を超える急落)があれば、それ単独でも
+  // アンダーパスの可能性が高いと判断する。
+  let hasVerticalUnderpassWall = false;
+  for (let i = 0; i < profile.length - 1; i++) {
+    const a = profile[i].elev, b = profile[i + 1].elev;
+    if (a === null || b === null) continue;
+    if (a - b >= UNDERPASS_DEPTH_M) { hasVerticalUnderpassWall = true; break; }
+  }
+
+  const isPossibleUnderpass = isUShapeUnderpass || hasVerticalUnderpassWall;
 
   // 隣接する10m区間だけで急激に高さが変わっている場合、なだらかな坂ではなく
   // 鉄道の盛り土・堤防・擁壁のような人工的な段差である可能性が高い。
@@ -1385,8 +1397,12 @@ function sparklineSVG(fullProfile, status, cutoffDist) {
   // なだらかに複数区間に分かれている場合(例: 10mごとに0.4mずつ、計3区間で1.2m登る)は
   // 検知されず、下り側だけが単独の「アンダーパス」として誤判定されることがあった。
   // 前後60m以内で、その点が周囲より明確に高い(低い)かどうかで山・谷そのものを判定する。
+  // 盛り土(山)は控えめな高低差でも意味があるため1m基準のままだが、アンダーパス(谷)は
+  // 「横断する鉄道・道路の桁高+建築限界4.5mを確保するため最深部で6m以上の高低差が生じる」
+  // という実際の構造を踏まえ、6mを基準にする(それ未満は単なる小さな窪みとして扱う)。
   const LOCAL_WINDOW_M = 150; // 建築限界(4.5m)確保のための緩勾配ランプは100m超になることもあるため広めに取る
-  const LOCAL_THRESHOLD_M = 1.0;
+  const LOCAL_MOUND_THRESHOLD_M = 1.0;
+  const LOCAL_UNDERPASS_THRESHOLD_M = 6.0;
 
   const rawFeatures = [];
   for (let i = 1; i < fullProfile.length - 1; i++) {
@@ -1401,24 +1417,28 @@ function sparklineSVG(fullProfile, status, cutoffDist) {
     const maxBefore = Math.max(...before.map(p => p.elev));
     const maxAfter = Math.max(...after.map(p => p.elev));
 
-    const isPeak = (center.elev - minBefore >= LOCAL_THRESHOLD_M) && (center.elev - minAfter >= LOCAL_THRESHOLD_M);
-    const isValley = (maxBefore - center.elev >= LOCAL_THRESHOLD_M) && (maxAfter - center.elev >= LOCAL_THRESHOLD_M);
+    const isPeak = (center.elev - minBefore >= LOCAL_MOUND_THRESHOLD_M) && (center.elev - minAfter >= LOCAL_MOUND_THRESHOLD_M);
+    const isValley = (maxBefore - center.elev >= LOCAL_UNDERPASS_THRESHOLD_M) && (maxAfter - center.elev >= LOCAL_UNDERPASS_THRESHOLD_M);
 
     if (isPeak) rawFeatures.push({ dist: center.dist, elev: center.elev, type: "mound" });
     else if (isValley) rawFeatures.push({ dist: center.dist, elev: center.elev, type: "dip" });
   }
 
-  // 補完策: 1区間(10m)で道路の最急勾配(18%)を物理的に超える変化があれば、
-  // 前後に平坦区間を伴わなくても(=上の局所検出だけでは拾えなくても)、
-  // ほぼ確実に人工構造物(法面・擁壁)なので単独でも検出する。
+  // 補完策1: 1区間(10m)で道路の最急勾配(18%)を物理的に超える登りがあれば、
+  // 前後に平坦区間を伴わなくても、ほぼ確実に人工構造物(法面・擁壁)として単独でも検出する。
+  // 下り方向は、単なる急坂と区別するため、より大きな基準(アンダーパス側壁相当の6m)を使う。
   for (let i = 0; i < fullProfile.length - 1; i++) {
     const a = fullProfile[i].elev, b = fullProfile[i + 1].elev;
     if (a === null || b === null) continue;
     const jump = b - a;
-    if (Math.abs(jump) < IMPOSSIBLE_GRADE_M) continue;
     const midDist = (fullProfile[i].dist + fullProfile[i + 1].dist) / 2;
     const midElev = (a + b) / 2;
-    rawFeatures.push({ dist: midDist, elev: midElev, type: jump > 0 ? "mound" : "dip" });
+    if (jump >= IMPOSSIBLE_GRADE_M) {
+      rawFeatures.push({ dist: midDist, elev: midElev, type: "mound" });
+    } else if (-jump >= LOCAL_UNDERPASS_THRESHOLD_M) {
+      // アンダーパスの側壁のような、ほぼ垂直の急落(6m以上/10m)
+      rawFeatures.push({ dist: midDist, elev: midElev, type: "dip" });
+    }
   }
 
   // 同じ山・谷を指す近接した点が複数拾われるため、近い範囲(60m以内)ではもっとも
